@@ -7,12 +7,11 @@ import {
   IconMapPin as MapPin, IconDots as MoreHorizontal, IconPencil as Pencil,
   IconPhone as Phone, IconPlus as Plus, IconArrowForwardUp as Redo2,
   IconSettings as Settings2, IconSparkles as Sparkles, IconTrash as Trash2,
-  IconArrowBackUp as Undo2, IconUser as UserRound, IconX as X,
+  IconArrowBackUp as Undo2, IconUser as UserRound,
 } from "@tabler/icons-react";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
-import { AlignmentType, Document, HeadingLevel, ImageRun, Packer, Paragraph, TextRun } from "docx";
 import { optimizeProjectCopy, projectHasOptimizableContent } from "./copyOptimizer.js";
+import { normalizeOrder, hasText, hasProjectContent, sectionHasContent, resumeCompletion, parseResumeBackup, readStoredResume, saveResume, createBackup } from "./resumeData.js";
+import { Modal } from "./Modal.jsx";
 
 const initialProject = {
   id: "project-1",
@@ -42,7 +41,7 @@ const initialResume = {
   selfEvaluation: "",
 };
 const initialSettings = {
-  template: "classic", showPhoto: false, pageBorder: true, spacing: "standard", accent: "#2e5bea",
+  template: "classic", showPhoto: false, pageBorder: true, spacing: "standard", accent: "#2e5bea", hideEmptySections: true,
   moduleLayouts: { 基本信息: "bullets", 教育经历: "timeline", 项目经历: "structured", 技能: "tags", 自我评价: "bullets" },
 };
 const steps = ["基本信息", "教育经历", "项目经历", "技能", "调整样式"];
@@ -78,7 +77,7 @@ function ResumePreview({ resume, settings, order, previewRef }) {
   const { basics, education, projects, skills } = resume;
   const localPreviewRef = useRef(null);
   const [fitLevel, setFitLevel] = useState(0);
-  const fitClasses = ["fit-normal", "fit-compact", "fit-tight", "fit-ultra"];
+  const fitClasses = ["fit-normal", "fit-compact"];
   const setPreviewNode = (node) => { localPreviewRef.current = node; if (previewRef) previewRef.current = node; };
   const photoSrc = basics.photo || null;
   const titleFor = (key) => resume.sectionTitles?.[key] || moduleDefinitions[key].defaultTitle;
@@ -86,11 +85,12 @@ function ResumePreview({ resume, settings, order, previewRef }) {
   const pointContent = (text, fallback, layout) => layout === "paragraph"
     ? <p>{text || fallback}</p>
     : <ul className={`content-points ${layout === "columns" ? "two-columns" : ""}`}>{splitPoints(text, fallback).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>;
-  const skillGroups = skillDefinitions.map(({ key, defaultLabel }) => [resume.skillLabels?.[key] || defaultLabel, skills[key], key]);
+  const visibleProjects = settings.hideEmptySections ? projects.filter(hasProjectContent) : projects;
+  const skillGroups = skillDefinitions.filter(({ key }) => !settings.hideEmptySections || hasText(skills[key])).map(({ key, defaultLabel }) => [resume.skillLabels?.[key] || defaultLabel, skills[key], key]);
   const sections = {
     基本信息: <section key="basic" className={`module-section module-summary layout-${layoutFor("基本信息")}`}><SectionHeading>{titleFor("基本信息")}</SectionHeading>{pointContent(basics.summary, "请补充个人简介。", layoutFor("基本信息"))}</section>,
-    教育经历: <section key="education" className={`module-section module-education layout-${layoutFor("教育经历")}`}><SectionHeading>{titleFor("教育经历")}</SectionHeading><div className="education-entry"><div className="resume-row"><strong>{education.school || "学校名称"}</strong><span>{education.startDate || "开始时间"} - {education.endDate || "结束时间"}</span></div><div className="resume-row muted"><span>{education.major || "专业"}{education.degree ? `（${education.degree}）` : ""}</span><span>{education.location}</span></div></div></section>,
-    项目经历: <section key="project" className={`module-section module-project layout-${layoutFor("项目经历")}`}><SectionHeading>{titleFor("项目经历")}</SectionHeading>{projects.map((project, projectIndex) => <div className="project-entry" key={project.id || projectIndex}><div className="resume-row project-title-row"><strong>{project.name || `项目 ${projectIndex + 1}`}</strong><span>{project.startDate || "开始时间"} - {project.endDate || "结束时间"}</span></div><div className="resume-role">{project.role || "担任角色"}</div>{layoutFor("项目经历") === "structured" && <span className="content-label">项目概述</span>}<ul className="content-points project-points">{splitPoints(project.description, "请补充项目描述。").map((item, index) => <li key={`description-${index}`}>{item}</li>)}{project.achievements.filter(Boolean).map((item, index) => <li key={`achievement-${index}`}>{item}</li>)}</ul></div>)}</section>,
+    教育经历: <section key="education" className={`module-section module-education layout-${layoutFor("教育经历")}`}><SectionHeading>{titleFor("教育经历")}</SectionHeading><div className="education-entry"><div className="resume-row"><strong>{education.school || "学校名称"}</strong><span>{[education.startDate, education.endDate].filter(hasText).join(" — ")}</span></div><div className="resume-row muted"><span>{education.major}{education.degree ? `（${education.degree}）` : ""}</span><span>{education.location}</span></div></div></section>,
+    项目经历: <section key="project" className={`module-section module-project layout-${layoutFor("项目经历")}`}><SectionHeading>{titleFor("项目经历")}</SectionHeading>{visibleProjects.map((project, projectIndex) => <div className="project-entry" key={project.id || projectIndex}><div className="resume-row project-title-row"><strong>{project.name || `项目 ${projectIndex + 1}`}</strong><span>{[project.startDate, project.endDate].filter(hasText).join(" — ")}</span></div>{hasText(project.role) && <div className="resume-role">{project.role}</div>}{hasText(project.description) && layoutFor("项目经历") === "structured" && <span className="content-label">项目概述</span>}<ul className="content-points project-points">{splitPoints(project.description).map((item, index) => <li key={`description-${index}`}>{item}</li>)}{project.achievements.filter(Boolean).map((item, index) => <li key={`achievement-${index}`}>{item}</li>)}</ul></div>)}</section>,
     技能: <section key="skills" className={`module-section module-skills layout-${layoutFor("技能")}`}><SectionHeading>{titleFor("技能")}</SectionHeading>{layoutFor("技能") === "tags" ? <div className="skill-groups">{skillGroups.map(([label, value, key]) => <div className="skill-group" key={key}><b>{label}</b><span>{splitTags(value).map((tag) => <i key={tag}>{tag}</i>)}</span></div>)}</div> : <ul className="skills-list">{skillGroups.map(([label, value, key]) => <li key={key}><b>{label}：</b>{value}</li>)}</ul>}</section>,
     自我评价: <section key="evaluation" className={`module-section module-evaluation layout-${layoutFor("自我评价")}`}><SectionHeading>{titleFor("自我评价")}</SectionHeading>{pointContent(resume.selfEvaluation, "请补充自我评价。", layoutFor("自我评价"))}</section>,
   };
@@ -128,8 +128,8 @@ function ResumePreview({ resume, settings, order, previewRef }) {
   }, [fitLevel, resume, settings, order]);
   return <div ref={setPreviewNode} className={`resume-page resume-${settings.template} density-${settings.spacing} ${fitClasses[fitLevel]} ${settings.showPhoto ? "" : "hide-photo"} ${settings.pageBorder ? "" : "no-page-border"}`} style={{ "--resume-accent": settings.accent }} id="resume-preview" data-fit-level={fitClasses[fitLevel]}>
     <div className="tech-bar" />
-    <aside className="modern-sidebar">{settings.showPhoto && photoSrc && <img src={photoSrc} alt={`${basics.name}证件照`} />}<div className="sidebar-block"><strong>联系方式</strong><span>{basics.phone}</span><span>{basics.email}</span><span>{basics.location}</span></div><div className="sidebar-block"><strong>核心技能</strong><span>{skills.embedded}</span><span>{skills.languages}</span><span>{skills.protocols}</span></div></aside>
-    <main className="resume-main"><header className="resume-header"><div><h1>{basics.name || "你的姓名"}</h1><p>{basics.jobTitle || "求职岗位"}</p><div className="contact-row"><span><Phone size={10} />{basics.phone}</span><span><Mail size={10} />{basics.email}</span><span><MapPin size={10} />{basics.location}</span></div></div>{settings.showPhoto && photoSrc && <img src={photoSrc} alt={`${basics.name}证件照`} />}</header>{order.map((name) => sections[name])}</main>
+    <aside className="modern-sidebar">{settings.showPhoto && photoSrc && <img src={photoSrc} alt={`${basics.name}证件照`} />}{[basics.phone, basics.email, basics.location].some(hasText) && <div className="sidebar-block"><strong>联系方式</strong><span>{basics.phone}</span><span>{basics.email}</span><span>{basics.location}</span></div>}{Object.values(skills).some(hasText) && <div className="sidebar-block"><strong>核心技能</strong>{skillGroups.map(([label, value, key]) => <span key={key}>{value}</span>)}</div>}</aside>
+    <main className="resume-main"><header className="resume-header"><div><h1>{basics.name || "你的姓名"}</h1><p>{basics.jobTitle || "求职岗位"}</p><div className="contact-row">{hasText(basics.phone) && <span><Phone size={10} />{basics.phone}</span>}{hasText(basics.email) && <span><Mail size={10} />{basics.email}</span>}{hasText(basics.location) && <span><MapPin size={10} />{basics.location}</span>}</div></div>{settings.showPhoto && photoSrc && <img src={photoSrc} alt={`${basics.name}证件照`} />}</header>{order.filter((name) => !settings.hideEmptySections || sectionHasContent(name, resume)).map((name) => sections[name])}</main>
   </div>;
 }
 
@@ -146,7 +146,7 @@ const hydrateResume = (value) => ({
   education: { ...initialResume.education, ...(value?.education || {}) },
   project: undefined,
   projects: Array.isArray(value?.projects) && value.projects.length
-    ? value.projects.map((project, index) => ({ ...initialProject, ...project, id: project.id || `project-${index + 1}`, achievements: Array.isArray(project.achievements) ? project.achievements : [] }))
+    ? value.projects.map((project, index) => ({ ...initialProject, ...project, id: `project-${index + 1}`, achievements: Array.isArray(project.achievements) ? project.achievements : [] }))
     : [{ ...initialProject, ...(value?.project || {}), id: value?.project?.id || "project-1", achievements: Array.isArray(value?.project?.achievements) ? value.project.achievements : initialProject.achievements }],
   skills: { ...initialResume.skills, ...(value?.skills || {}) },
   skillLabels: { ...initialResume.skillLabels, ...(value?.skillLabels || {}) },
@@ -157,11 +157,17 @@ const hydrateSettings = (value) => ({
 });
 
 export function App() {
-  const saved = (() => { try { return JSON.parse(localStorage.getItem("resume-workshop-state")); } catch { return null; } })();
+  const [loaded] = useState(() => readStoredResume({ getItem: (key) => window.localStorage.getItem(key) }));
+  const saved = loaded.state;
   const [resume, setResume] = useState(() => hydrateResume(saved?.resume));
   const [settings, setSettings] = useState(() => hydrateSettings(saved?.settings));
-  const [order, setOrder] = useState(saved?.order || defaultOrder);
-  const [activeStep, setActiveStep] = useState(2);
+  const [order, setOrder] = useState(() => normalizeOrder(saved?.order));
+  const [activeStep, setActiveStep] = useState(0);
+  const [mobileView, setMobileView] = useState("editor");
+  const [pendingImport, setPendingImport] = useState(null);
+  const [storageError, setStorageError] = useState(loaded.error);
+  const [previewScale, setPreviewScale] = useState(1);
+  const [pageCount, setPageCount] = useState(1);
   const [dragged, setDragged] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -169,21 +175,59 @@ export function App() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [activeProjectIndex, setActiveProjectIndex] = useState(0);
-  const [status, setStatus] = useState("已自动保存");
+  const [status, setStatus] = useState(saved ? "已恢复本地简历" : "保存在此设备");
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState("");
   const [exportResult, setExportResult] = useState("");
   const [historyVersion, setHistoryVersion] = useState(0);
   const previewRef = useRef(null); const titleRef = useRef(null); const photoInputRef = useRef(null);
+  const importInputRef = useRef(null); const previewViewportRef = useRef(null);
+  const stateRef = useRef(null); const dirtyRef = useRef(false);
   const undoRef = useRef([]); const redoRef = useRef([]);
-  const progress = useMemo(() => Math.round(((activeStep + 1) / steps.length) * 100), [activeStep]);
+  const completion = useMemo(() => resumeCompletion(resume), [resume]);
+  const progress = completion.percent;
   const snapshot = () => ({ resume: deepCopy(resume), settings: deepCopy(settings), order: [...order] });
-  const commit = (change) => { undoRef.current.push(snapshot()); if (undoRef.current.length > 60) undoRef.current.shift(); redoRef.current = []; change(); setHistoryVersion((v) => v + 1); };
-  const applySnapshot = (state) => { setResume(state.resume); setSettings(state.settings); setOrder(state.order); };
+  const commit = (change) => { dirtyRef.current = true; undoRef.current.push(snapshot()); if (undoRef.current.length > 60) undoRef.current.shift(); redoRef.current = []; change(); setHistoryVersion((v) => v + 1); };
+  const applySnapshot = (state) => { dirtyRef.current = true; setResume(state.resume); setSettings(state.settings); setOrder(state.order); };
   const undo = () => { if (!undoRef.current.length) return; redoRef.current.push(snapshot()); applySnapshot(undoRef.current.pop()); setHistoryVersion((v) => v + 1); setToast("已撤销上一步操作"); };
   const redo = () => { if (!redoRef.current.length) return; undoRef.current.push(snapshot()); applySnapshot(redoRef.current.pop()); setHistoryVersion((v) => v + 1); setToast("已恢复操作"); };
 
-  useEffect(() => { setStatus("保存中..."); const id = setTimeout(() => { localStorage.setItem("resume-workshop-state", JSON.stringify({ resume, settings, order })); setStatus("已自动保存"); }, 350); return () => clearTimeout(id); }, [resume, settings, order]);
+  stateRef.current = { resume, settings, order };
+  useEffect(() => {
+    if (!dirtyRef.current) return;
+    setStatus("保存中…");
+    const id = setTimeout(() => {
+      const ok = saveResume({ setItem: (key, value) => window.localStorage.setItem(key, value) }, { resume, settings, order });
+      setStatus(ok ? "已保存到此设备" : "尚未保存");
+      setStorageError(ok ? "" : "本地保存失败，可能是存储空间不足或浏览器限制。请先导出简历备份，避免内容丢失。");
+    }, 350);
+    return () => clearTimeout(id);
+  }, [resume, settings, order]);
+  useEffect(() => {
+    const flush = () => { if (dirtyRef.current) saveResume({ setItem: (key, value) => window.localStorage.setItem(key, value) }, stateRef.current); };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, []);
+  useEffect(() => {
+    const closeMenus = (event) => { if (!event.target.closest(".settings-wrap, .export-wrap, .more-wrap")) { setSettingsOpen(false); setExportOpen(false); setMoreOpen(false); } };
+    const escape = (event) => { if (event.key === "Escape") { setSettingsOpen(false); setExportOpen(false); setMoreOpen(false); } };
+    document.addEventListener("pointerdown", closeMenus); document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", closeMenus); document.removeEventListener("keydown", escape); };
+  }, []);
+  useEffect(() => {
+    const viewport = previewViewportRef.current;
+    if (!viewport || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => { if (viewport.clientWidth) setPreviewScale(Math.min(1, (viewport.clientWidth - 32) / 610)); });
+    observer.observe(viewport); return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    const page = previewRef.current;
+    if (!page || typeof ResizeObserver === "undefined") return;
+    const measure = () => setPageCount(Math.max(1, Math.ceil((page.scrollHeight - 2) / (610 * 297 / 210))));
+    const observer = new ResizeObserver(measure);
+    observer.observe(page); page.querySelectorAll(".resume-main, .modern-sidebar").forEach((node) => observer.observe(node));
+    measure(); return () => observer.disconnect();
+  }, [resume, settings, order]);
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(""), 2400); return () => clearTimeout(id); }, [toast]);
   useEffect(() => { if (editingTitle) { titleRef.current?.focus(); titleRef.current?.select(); } }, [editingTitle]);
   useEffect(() => { if (activeProjectIndex >= resume.projects.length) setActiveProjectIndex(Math.max(0, resume.projects.length - 1)); }, [activeProjectIndex, resume.projects.length]);
@@ -197,7 +241,7 @@ export function App() {
   const selectTemplate = (id) => { if (id === settings.template) return; updateSetting("template", id); setToast(`已切换为${templates.find((t) => t.id === id)?.name}`); };
   const updateProject = (projectIndex, field, value) => commit(() => setResume((current) => ({ ...current, projects: current.projects.map((project, index) => index === projectIndex ? { ...project, [field]: value } : project) })));
   const updateAchievement = (projectIndex, achievementIndex, value) => commit(() => setResume((current) => ({ ...current, projects: current.projects.map((project, index) => index === projectIndex ? { ...project, achievements: project.achievements.map((item, itemIndex) => itemIndex === achievementIndex ? value : item) } : project) })));
-  const addAchievement = (projectIndex) => commit(() => setResume((current) => ({ ...current, projects: current.projects.map((project, index) => index === projectIndex ? { ...project, achievements: [...project.achievements, "新增项目成果"] } : project) })));
+  const addAchievement = (projectIndex) => commit(() => setResume((current) => ({ ...current, projects: current.projects.map((project, index) => index === projectIndex ? { ...project, achievements: [...project.achievements, ""] } : project) })));
   const removeAchievement = (projectIndex, achievementIndex) => commit(() => setResume((current) => ({ ...current, projects: current.projects.map((project, index) => index === projectIndex ? { ...project, achievements: project.achievements.filter((_, itemIndex) => itemIndex !== achievementIndex) } : project) })));
   const addProject = () => { const nextIndex = resume.projects.length; commit(() => setResume((current) => ({ ...current, projects: [...current.projects, emptyProject()] }))); setActiveProjectIndex(nextIndex); setToast("已新增一段项目经历"); };
   const removeProject = (projectIndex) => {
@@ -225,7 +269,7 @@ export function App() {
   const reorder = (target) => { if (!dragged || dragged === target) return; commit(() => setOrder((current) => { const next = current.filter((item) => item !== dragged); next.splice(next.indexOf(target), 0, dragged); return next; })); setDragged(null); setToast("模块顺序已同步到预览"); };
   const moveItem = (name, direction) => { const index = order.indexOf(name); const nextIndex = index + direction; if (nextIndex < 0 || nextIndex >= order.length) return; commit(() => setOrder((current) => { const next = [...current]; [next[index], next[nextIndex]] = [next[nextIndex], next[index]]; return next; })); setToast("模块顺序已同步到预览"); };
 
-  const goNext = () => { if (activeStep < steps.length - 1) setActiveStep((s) => s + 1); setToast(`${steps[activeStep]}已保存`); };
+  const goNext = () => { if (activeStep < steps.length - 1) setActiveStep((s) => s + 1); else { setMobileView("preview"); setExportOpen(true); } };
   const handlePhotoUpload = (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -255,11 +299,14 @@ export function App() {
   const removePhoto = () => { commit(() => { setResume((current) => ({ ...current, basics: { ...current.basics, photo: null } })); setSettings((current) => ({ ...current, showPhoto: false })); }); setToast("证件照已移除"); };
 
   const exportPdf = async () => {
-    if (!previewRef.current) return;
+    if (!previewRef.current || busy) return;
+    setMobileView("preview");
     setBusy("pdf"); setExportOpen(false); setExportResult("pdf-started");
     try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
       const sourceNode = previewRef.current;
       await Promise.all([...sourceNode.querySelectorAll("img")].map((img) => img.complete ? Promise.resolve() : new Promise((resolve) => { img.onload = resolve; img.onerror = resolve; })));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const sourceWidth = sourceNode.scrollWidth;
       const sourceHeight = Math.max(sourceNode.scrollHeight, Math.ceil(sourceWidth * 297 / 210));
       const canvas = await html2canvas(sourceNode, {
@@ -268,13 +315,17 @@ export function App() {
         onclone: (clonedDocument) => {
           const clonedResume = clonedDocument.getElementById("resume-preview");
           if (!clonedResume) return;
+          for (let ancestor = clonedResume.parentElement; ancestor; ancestor = ancestor.parentElement) {
+            ancestor.style.transform = "none"; ancestor.style.overflow = "visible";
+            ancestor.style.visibility = "visible"; ancestor.style.position = "static";
+          }
           clonedResume.style.width = `${sourceWidth}px`; clonedResume.style.height = "auto";
           clonedResume.style.minHeight = `${sourceHeight}px`; clonedResume.style.maxHeight = "none";
           clonedResume.style.aspectRatio = "auto"; clonedResume.style.overflow = "visible"; clonedResume.style.boxShadow = "none";
         },
       });
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageHeightPixels = Math.floor(canvas.width * 297 / 210);
+      const pageHeightPixels = Math.ceil(canvas.width * 297 / 210);
       const totalPages = Math.max(1, Math.ceil(canvas.height / pageHeightPixels));
       for (let page = 0; page < totalPages; page += 1) {
         const offsetY = page * pageHeightPixels;
@@ -291,32 +342,50 @@ export function App() {
     finally { setBusy(""); }
   };
   const exportWord = async () => {
+    if (busy) return;
     setBusy("word"); setExportOpen(false); setExportResult("word-started");
     try {
+      const { AlignmentType, Document, HeadingLevel, ImageRun, Packer, Paragraph, TextRun } = await import("docx");
       const heading = (text) => new Paragraph({ text, heading: HeadingLevel.HEADING_2, spacing: { before: 220, after: 100 } });
       const bullet = (text) => new Paragraph({ text, bullet: { level: 0 }, spacing: { after: 70 } });
       const titled = (section) => resume.sectionTitles?.[section] || moduleDefinitions[section].defaultTitle;
       const textBlock = (section, text) => settings.moduleLayouts?.[section] === "paragraph" ? [new Paragraph(text)] : splitPoints(text).map(bullet);
       const b = resume.basics, e = resume.education, s = resume.skills;
-      const projectBlocks = resume.projects.flatMap((project, index) => [
-        new Paragraph({ spacing: { before: index ? 160 : 0, after: 60 }, children: [new TextRun({ text: project.name || `项目 ${index + 1}`, bold: true }), new TextRun(`  ${project.startDate || "开始时间"} - ${project.endDate || "结束时间"}`)] }),
-        new Paragraph({ text: project.role || "担任角色", spacing: { after: 60 } }),
+      const projectBlocks = resume.projects.filter(hasProjectContent).flatMap((project, index) => [
+        new Paragraph({ spacing: { before: index ? 160 : 0, after: 60 }, children: [new TextRun({ text: project.name, bold: true }), new TextRun(`  ${[project.startDate, project.endDate].filter(hasText).join(" — ")}`)] }),
+        ...(hasText(project.role) ? [new Paragraph({ text: project.role, spacing: { after: 60 } })] : []),
         ...splitPoints(project.description).map(bullet),
         ...project.achievements.filter(Boolean).map(bullet),
       ]);
-      const skillBlocks = skillDefinitions.map(({ key, defaultLabel }) => bullet(`${resume.skillLabels?.[key] || defaultLabel}：${s[key]}`));
+      const skillBlocks = skillDefinitions.filter(({ key }) => hasText(s[key])).map(({ key, defaultLabel }) => bullet(`${resume.skillLabels?.[key] || defaultLabel}：${s[key]}`));
       const photoChildren = [];
       if (settings.showPhoto && b.photo) {
         const photoResponse = await fetch(b.photo); const photoData = new Uint8Array(await photoResponse.arrayBuffer());
         const photoType = b.photo.startsWith("data:image/png") || b.photo.endsWith(".png") ? "png" : "jpg";
         photoChildren.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: photoData, type: photoType, transformation: { width: 72, height: 90 } })] }));
       }
-      const doc = new Document({ sections: [{ properties: {}, children: [...photoChildren, new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: b.name, bold: true, size: 36 })] }), new Paragraph({ text: b.jobTitle, alignment: AlignmentType.CENTER }), new Paragraph({ text: `${b.phone}  |  ${b.email}  |  ${b.location}`, alignment: AlignmentType.CENTER, spacing: { after: 180 } }), heading(titled("基本信息")), ...textBlock("基本信息", b.summary), heading(titled("教育经历")), new Paragraph({ children: [new TextRun({ text: e.school, bold: true }), new TextRun(`  ${e.major}（${e.degree}）  ${e.startDate} - ${e.endDate}`)] }), heading(titled("项目经历")), ...projectBlocks, heading(titled("技能")), ...skillBlocks, heading(titled("自我评价")), ...textBlock("自我评价", resume.selfEvaluation)] }] });
+      const sectionBlocks = {
+        基本信息: textBlock("基本信息", b.summary),
+        教育经历: [new Paragraph({ children: [new TextRun({ text: e.school, bold: true }), new TextRun(`  ${[e.major, e.degree].filter(hasText).join(" · ")}  ${[e.startDate, e.endDate].filter(hasText).join(" — ")}`)] })],
+        项目经历: projectBlocks, 技能: skillBlocks, 自我评价: textBlock("自我评价", resume.selfEvaluation),
+      };
+      const orderedBlocks = order.filter((key) => sectionHasContent(key, resume)).flatMap((key) => [heading(titled(key)), ...sectionBlocks[key]]);
+      const doc = new Document({ styles: { default: { document: { run: { font: "Microsoft YaHei", size: 21 }, paragraph: { spacing: { line: 280 } } } } }, sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 850, right: 1000, bottom: 850, left: 1000 } } }, children: [...photoChildren, new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: b.name, bold: true, size: 36 })] }), new Paragraph({ text: b.jobTitle, alignment: AlignmentType.CENTER }), new Paragraph({ text: [b.phone, b.email, b.location].filter(hasText).join("  |  "), alignment: AlignmentType.CENTER, spacing: { after: 180 } }), ...orderedBlocks] }] });
       downloadBlob(await Packer.toBlob(doc), `${b.name || "我的"}-简历.docx`); setExportResult("word-success"); setToast("Word 文档已开始下载");
     } catch (error) { setExportResult(`word-error:${error?.message || "unknown"}`); setToast("Word 导出失败，请重试"); }
     finally { setBusy(""); }
   };
-  const exportJson = () => { downloadBlob(new Blob([JSON.stringify({ resume, settings, order }, null, 2)], { type: "application/json" }), `${resume.title || "resume"}.json`); setMoreOpen(false); setToast("简历数据已导出"); };
+  const exportJson = () => { downloadBlob(new Blob([createBackup({ resume, settings, order })], { type: "application/json" }), `${resume.title || "resume"}.json`); setMoreOpen(false); setToast("简历备份已导出，可在其他设备导入继续编辑"); };
+  const importJson = async (event) => {
+    const file = event.target.files?.[0]; event.target.value = ""; setMoreOpen(false);
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { setToast("备份文件不能超过 8 MB"); return; }
+    try { setPendingImport(parseResumeBackup(await file.text())); } catch (error) { setToast(error.message || "无法读取备份文件"); }
+  };
+  const confirmImport = () => {
+    commit(() => { setResume(hydrateResume(pendingImport.resume)); setSettings(hydrateSettings(pendingImport.settings)); setOrder(pendingImport.order); });
+    setPendingImport(null); setActiveProjectIndex(0); setActiveStep(0); setMobileView("editor"); setToast("备份已恢复；可通过撤销找回导入前的内容");
+  };
   const clearResumeContent = () => { if (!window.confirm("确定清空全部内容吗？当前内容仍可通过撤销找回。")) return; commit(() => { setResume(deepCopy(initialResume)); setSettings((current) => ({ ...current, showPhoto: false })); }); setActiveProjectIndex(0); setMoreOpen(false); setToast("已清空全部内容"); };
 
   const field = (label, value, onChange, options = {}) => <label className={options.full ? "full" : ""}><span>{label}{options.required && <> <b>*</b></>}{options.hint && <em>{options.hint}</em>}</span><div className={options.textarea ? "textarea-wrap" : "input-wrap"}>{options.textarea ? <textarea aria-label={label} value={value} maxLength={options.max || 500} onChange={(e) => onChange(e.target.value)} /> : <input aria-label={label} value={value} type={options.type || "text"} maxLength={options.max || 100} onChange={(e) => onChange(e.target.value)} />}{options.max && <small>{value.length}/{options.max}</small>}</div></label>;
@@ -360,12 +429,40 @@ export function App() {
     <><div className="section-heading"><div><h2>调整简历样式</h2><p>自定义模块名称、内容布局和整体视觉</p></div></div><div className="style-controls"><span className="field-label">强调色</span><div className="color-row">{["#2e5bea", "#0f766e", "#7c3aed", "#c2410c"].map((color) => <button type="button" key={color} aria-label={`选择强调色 ${color}`} aria-pressed={settings.accent === color} className={settings.accent === color ? "active" : ""} style={{ background: color }} onClick={() => updateSetting("accent", color)} />)}</div><label><span className="field-label">内容密度</span><select aria-label="内容密度" value={settings.spacing} onChange={(e) => updateSetting("spacing", e.target.value)}><option value="compact">紧凑</option><option value="standard">标准</option><option value="comfortable">舒展</option></select></label><label className="toggle-row"><span>显示证件照</span><input type="checkbox" checked={settings.showPhoto} onChange={(e) => updateSetting("showPhoto", e.target.checked)} /></label><label className="toggle-row"><span>显示 A4 页面边界</span><input type="checkbox" checked={settings.pageBorder} onChange={(e) => updateSetting("pageBorder", e.target.checked)} /></label></div>{moduleCustomizer}</>,
   ];
 
-  return <div className="app-shell">
-    <header className="topbar"><div className="brand-block"><strong className="brand">简历工坊</strong><span>用专业的方式，成就更好的你</span></div>{editingTitle ? <input ref={titleRef} className="title-input" aria-label="简历名称" value={resume.title} maxLength={30} onChange={(e) => updateRoot("title", e.target.value)} onBlur={() => setEditingTitle(false)} onKeyDown={(e) => { if (e.key === "Enter") setEditingTitle(false); }} /> : <button type="button" className="document-title" onClick={() => setEditingTitle(true)} aria-label="编辑简历名称">{resume.title || "未命名简历"} <Pencil size={16} /></button>}<div className="top-actions"><span className="save-status"><CircleCheck size={17} />{status}</span><button type="button" className="icon-button" onClick={undo} disabled={!undoRef.current.length} aria-label="撤销"><Undo2 size={18} /></button><button type="button" className="icon-button" onClick={redo} disabled={!redoRef.current.length} aria-label="重做"><Redo2 size={18} /></button><div className="settings-wrap"><button type="button" className="secondary-button" onClick={() => { setSettingsOpen(!settingsOpen); setExportOpen(false); setMoreOpen(false); }}><Settings2 size={17} /> 预览设置</button>{settingsOpen && <div className="settings-popover"><strong>预览设置</strong><label><input type="checkbox" checked={settings.showPhoto} onChange={(e) => updateSetting("showPhoto", e.target.checked)} /> 显示照片</label><label><input type="checkbox" checked={settings.pageBorder} onChange={(e) => updateSetting("pageBorder", e.target.checked)} /> A4 页面边界</label><label>内容密度<select value={settings.spacing} onChange={(e) => updateSetting("spacing", e.target.value)}><option value="compact">紧凑</option><option value="standard">标准</option><option value="comfortable">舒展</option></select></label><button type="button" onClick={() => setSettingsOpen(false)}>完成</button></div>}</div><div className="export-wrap"><button type="button" className="primary-button export-trigger" onClick={() => { setExportOpen(!exportOpen); setSettingsOpen(false); setMoreOpen(false); }}><Download size={18} /> 导出 <ChevronDown size={16} /></button>{exportOpen && <div className="export-menu"><button type="button" onClick={exportPdf} disabled={Boolean(busy)}><span className="file-icon pdf"><FileText size={21} /></span><span><strong>{busy === "pdf" ? "正在生成..." : "PDF 文档"}</strong><small>适合投递，通用性强</small></span></button><button type="button" onClick={exportWord} disabled={Boolean(busy)}><span className="file-icon word"><FileText size={21} /></span><span><strong>{busy === "word" ? "正在生成..." : "Word 文档"}</strong><small>支持再次编辑</small></span></button></div>}</div><div className="more-wrap"><button type="button" className="icon-button" aria-label="更多选项" onClick={() => { setMoreOpen(!moreOpen); setSettingsOpen(false); setExportOpen(false); }}><MoreHorizontal size={21} /></button>{moreOpen && <div className="more-menu"><button type="button" onClick={exportJson}>导出简历数据</button><button type="button" onClick={clearResumeContent}>清空全部内容</button></div>}</div></div></header>
-    <nav className="stepper" aria-label="简历制作步骤">{steps.map((step, index) => <button type="button" key={step} className={index === activeStep ? "active" : index < activeStep ? "done" : ""} onClick={() => setActiveStep(index)}><span>{index < activeStep ? <Check size={15} strokeWidth={3} /> : index + 1}</span>{step}</button>)}<div className="progress-label">{progress}%</div><div className="progress-track"><span style={{ width: `${progress}%` }} /></div></nav>
-    <div className="workspace"><section className="editor-panel"><div className="panel-section template-section"><div className="section-heading"><div><h2>选择简历模板</h2><p>切换模板不会丢失已填写的内容</p></div><button type="button" onClick={() => setGalleryOpen(true)}>查看全部 <ArrowRight size={15} /></button></div><div className="template-grid">{templates.map((item) => <TemplateThumb key={item.id} template={item} selected={settings.template === item.id} onSelect={selectTemplate} />)}</div></div><div className="panel-section form-section">{forms[activeStep]}<div className="form-actions">{activeStep === 2 && <><button type="button" className="optimize-button" onClick={optimizeCopy} title="仅优化当前项目已填写的内容"><Sparkles size={17} /> 优化措辞</button><span>按当前内容逐项优化，不补写空白信息</span></>}{activeStep > 0 && <button type="button" className="back-button" onClick={() => setActiveStep((s) => s - 1)}><ArrowLeft size={16} /> 上一步</button>}<button type="button" className="continue-button" onClick={goNext}>{activeStep === steps.length - 1 ? "完成编辑" : "保存并继续"} <ArrowRight size={17} /></button></div></div></section><aside className="preview-panel"><div className="preview-sync"><CircleCheck size={16} /> A4 自动排版</div><ResumePreview resume={resume} settings={settings} order={order} previewRef={previewRef} /></aside></div>
+  return <div className="app-shell" data-view={mobileView}>
+    <header className="topbar">
+      <div className="brand-block"><span className="brand-symbol"><FileText size={21} /></span><strong className="brand">简历工坊</strong></div>
+      {editingTitle ? <input ref={titleRef} className="title-input" aria-label="简历名称" value={resume.title} maxLength={30} onChange={(e) => updateRoot("title", e.target.value)} onBlur={() => setEditingTitle(false)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setEditingTitle(false); }} /> : <button type="button" className="document-title" onClick={() => setEditingTitle(true)} aria-label="编辑简历名称">{resume.title || "我的第一份简历"} <Pencil size={15} /></button>}
+      <div className="top-actions">
+        <button type="button" className="icon-button" onClick={undo} disabled={!undoRef.current.length} aria-label="撤销"><Undo2 size={19} /></button><button type="button" className="icon-button" onClick={redo} disabled={!redoRef.current.length} aria-label="重做"><Redo2 size={19} /></button>
+        <div className="export-wrap"><button type="button" className="primary-button export-trigger" disabled={Boolean(busy)} aria-expanded={exportOpen} onClick={() => { setExportOpen(!exportOpen); setSettingsOpen(false); setMoreOpen(false); }}><Download size={18} /> {busy ? "生成中…" : "导出简历"} <ChevronDown size={16} /></button>
+          {exportOpen && <div className="export-menu"><button type="button" onClick={exportPdf} disabled={Boolean(busy)}><span className="file-icon pdf"><FileText size={21} /></span><span><strong>PDF 文档</strong><small>保留当前版式，适合投递</small></span></button><button type="button" onClick={exportWord} disabled={Boolean(busy)}><span className="file-icon word"><FileText size={21} /></span><span><strong>Word 文档</strong><small>可编辑文字，版式有所不同</small></span></button></div>}
+        </div>
+        <div className="more-wrap"><button type="button" className="icon-button" aria-label="更多选项" aria-expanded={moreOpen} onClick={() => { setMoreOpen(!moreOpen); setSettingsOpen(false); setExportOpen(false); }}><MoreHorizontal size={21} /></button>{moreOpen && <div className="more-menu"><button type="button" onClick={exportJson}>导出备份（JSON）</button><button type="button" onClick={() => importInputRef.current?.click()}>导入备份</button><button type="button" className="danger-text" onClick={clearResumeContent}>清空全部内容</button></div>}</div>
+      </div>
+      <input ref={importInputRef} className="sr-only" type="file" accept=".json,application/json" aria-label="导入简历备份" onChange={importJson} />
+    </header>
+    <div className="workspace-heading"><div><span className="eyebrow">RESUME WORKSPACE</span><h1>让每一段经历，都被看见。</h1><p>从内容到排版，专注打造你的下一次机会。</p></div><span className={`save-status ${storageError ? "save-warning" : ""}`} role="status"><CircleCheck size={16} />{status}<small>内容仅存于当前浏览器</small></span></div>
+    {storageError && <div className="storage-alert" role="alert"><span>{storageError}</span><button type="button" onClick={exportJson}>导出备份</button></div>}
+    <div className="mobile-view-switch" aria-label="工作区视图"><button type="button" aria-pressed={mobileView === "editor"} onClick={() => setMobileView("editor")}><Pencil size={17} />编辑内容</button><button type="button" aria-pressed={mobileView === "preview"} onClick={() => setMobileView("preview")}><FileText size={17} />查看预览</button></div>
+    <div className="workspace">
+      <section className="editor-panel" aria-label="简历编辑">
+        <nav className="stepper" aria-label="简历制作步骤">{steps.map((step, index) => <button type="button" key={step} aria-current={index === activeStep ? "step" : undefined} className={index === activeStep ? "active" : completion.steps[index] ? "done" : ""} onClick={() => setActiveStep(index)}><span>{completion.steps[index] ? <Check size={14} strokeWidth={3} /> : index + 1}</span>{step}</button>)}</nav>
+        <div className="completion-row"><span>内容完善度 <strong>{progress}%</strong></span><div className="progress-track" role="progressbar" aria-label="内容完善度" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${progress}%` }} /></div></div>
+        <div className="panel-section form-section">{forms[activeStep]}
+          <div className="form-actions">{activeStep === 2 && <button type="button" className="optimize-button" onClick={optimizeCopy} title="仅优化当前项目已填写的内容"><Sparkles size={17} /> 优化措辞</button>}{activeStep > 0 && <button type="button" className="back-button" onClick={() => setActiveStep((s) => s - 1)}><ArrowLeft size={16} /> 上一步</button>}<button type="button" className="continue-button" onClick={goNext}>{activeStep === steps.length - 1 ? "预览并导出" : "下一步"} <ArrowRight size={17} /></button></div>
+        </div>
+      </section>
+      <aside className="preview-panel" aria-label="简历预览">
+        <div className="preview-toolbar"><div><strong>实时预览</strong><span>A4 · {templates.find((item) => item.id === settings.template)?.name}</span></div><div className="settings-wrap"><button type="button" className="secondary-button" aria-expanded={settingsOpen} onClick={() => { setSettingsOpen(!settingsOpen); setExportOpen(false); setMoreOpen(false); }}><Settings2 size={16} /> 预览设置</button>{settingsOpen && <div className="settings-popover"><strong>预览设置</strong><label><input type="checkbox" checked={settings.showPhoto} onChange={(e) => updateSetting("showPhoto", e.target.checked)} /> 显示照片</label><label><input type="checkbox" checked={settings.pageBorder} onChange={(e) => updateSetting("pageBorder", e.target.checked)} /> A4 页面边界</label><label><input type="checkbox" checked={settings.hideEmptySections} onChange={(e) => updateSetting("hideEmptySections", e.target.checked)} /> 隐藏空白模块</label><label>内容密度<select aria-label="预览内容密度" value={settings.spacing} onChange={(e) => updateSetting("spacing", e.target.value)}><option value="compact">紧凑</option><option value="standard">标准</option><option value="comfortable">舒展</option></select></label></div>}</div></div>
+        <div className="template-strip" aria-label="选择简历模板">{templates.map((item) => <button type="button" key={item.id} aria-pressed={settings.template === item.id} onClick={() => selectTemplate(item.id)}>{settings.template === item.id && <Check size={15} />}{item.name}</button>)}<button type="button" className="browse-templates" aria-label="浏览模板版式" onClick={() => setGalleryOpen(true)}><ImageIcon size={17} /></button></div>
+        <div className="preview-viewport" ref={previewViewportRef}><div className="preview-stage" style={{ width: 610 * previewScale, height: 610 * 297 / 210 * previewScale }}><div className="preview-transform" style={{ transform: `scale(${previewScale})` }}><ResumePreview resume={resume} settings={settings} order={order} previewRef={previewRef} /></div></div></div>
+        <div className={`preview-caption ${pageCount > 1 ? "overflow-notice" : ""}`}>{pageCount > 1 ? `内容超过一页（约 ${pageCount} 页）。当前显示首页；建议精简内容，PDF 将导出全部内容。` : "预览随内容实时更新 · 导出前请核对联系方式"}</div>
+      </aside>
+    </div>
     <footer className="reorder-bar"><div className="reorder-hint"><GripVertical size={20} /><strong>拖动调整模块顺序</strong><span>也可用左右箭头调整，预览会即时同步</span></div><div className="reorder-items">{order.map((item) => { const displayTitle = resume.sectionTitles?.[item] || moduleDefinitions[item].defaultTitle; return <div className="reorder-item" key={item}><button type="button" draggable onDragStart={() => setDragged(item)} onDragEnd={() => setDragged(null)} onDragOver={(e) => e.preventDefault()} onDrop={() => reorder(item)} className={item === steps[activeStep] ? "active" : ""}>{item === "基本信息" && <UserRound size={16} />}{item === "教育经历" && <BriefcaseBusiness size={16} />}{item === "项目经历" && <FileText size={16} />}{item === "技能" && <ImageIcon size={16} />}{item === "自我评价" && <CircleCheck size={16} />}<span className="reorder-name">{displayTitle}</span><GripVertical size={16} /></button><span className="reorder-controls"><button type="button" aria-label={`${displayTitle}向左移动`} onClick={() => moveItem(item, -1)}>‹</button><button type="button" aria-label={`${displayTitle}向右移动`} onClick={() => moveItem(item, 1)}>›</button></span></div>; })}</div></footer>
-    {galleryOpen && <div className="modal-backdrop" role="presentation"><section className="template-modal" role="dialog" aria-modal="true" aria-labelledby="template-title"><div className="modal-head"><div><h2 id="template-title">选择简历模板</h2><p>根据岗位与内容密度挑选合适版式</p></div><button type="button" className="icon-button" aria-label="关闭模板选择" onClick={() => setGalleryOpen(false)}><X size={20} /></button></div><div className="modal-template-grid">{templates.map((item) => <TemplateThumb key={item.id} template={item} selected={settings.template === item.id} onSelect={(id) => { selectTemplate(id); setGalleryOpen(false); }} />)}</div></section></div>}
-    {toast && <div className="toast" role="status"><CircleCheck size={18} />{toast}</div>}<output data-testid="export-status" className="sr-only">{exportResult}</output><output data-testid="history-version" className="sr-only">{historyVersion}</output>
+    {galleryOpen && <Modal title="选择简历模板" titleId="template-title" onClose={() => setGalleryOpen(false)}><p className="modal-description">切换版式会保留所有内容，你可以随时调整。</p><div className="modal-template-grid">{templates.map((item) => <TemplateThumb key={item.id} template={item} selected={settings.template === item.id} onSelect={(id) => { selectTemplate(id); setGalleryOpen(false); }} />)}</div></Modal>}
+    {pendingImport && <Modal title="恢复简历备份" titleId="import-title" onClose={() => setPendingImport(null)} className="import-modal"><p className="modal-description">将替换当前内容、样式和模块顺序。导入后可通过撤销恢复。</p><div className="import-summary"><strong>{pendingImport.resume.title || pendingImport.resume.basics?.name || "未命名简历"}</strong><span>{pendingImport.resume.projects?.filter(hasProjectContent).length || 0} 段项目经历</span></div><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setPendingImport(null)}>取消</button><button type="button" className="primary-button" onClick={confirmImport}>确认导入</button></div></Modal>}
+    {toast && <div className="toast" role="status">{toast}</div>}<output data-testid="export-status" className="sr-only">{exportResult}</output><output data-testid="history-version" className="sr-only">{historyVersion}</output>
   </div>;
 }
