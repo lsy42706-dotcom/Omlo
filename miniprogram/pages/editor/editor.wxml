@@ -1,13 +1,13 @@
 <view class="editor-page safe-bottom">
   <view class="hero">
-    <view class="hero-top"><view class="brand-mark">简</view><text class="brand-name">简历工坊</text><text class="hero-pill">小程序版</text></view>
+    <view class="hero-top"><view class="brand-mark">简</view><text class="brand-name">简历工坊</text><button class="logout-button" bindtap="logout">退出登录</button></view>
     <text class="hero-eyebrow">YOUR NEXT CHAPTER</text>
     <text class="hero-title">把经历写成机会</text>
     <text class="hero-subtitle">分步整理内容，随时预览你的简历。</text>
     <view class="hero-progress"><view><text>内容完善度</text><text class="progress-number">{{progress}}%</text></view><view class="progress-track"><view style="width: {{progress}}%"></view></view></view>
   </view>
 
-  <view class="status-row"><view class="status-dot"></view><text>{{saveStatus}}</text><text class="status-note">仅存于当前微信设备</text></view>
+  <view class="status-row"><view class="status-dot"></view><text>{{saveStatus}}</text><button wx:if="{{saveStatus !== '已同步到云端' && saveStatus !== '正在同步云端…' && saveStatus !== '保存中…'}}" class="sync-button" bindtap="retryCloud">{{saveStatus === '其他设备更新了草稿' ? '处理冲突' : '立即同步'}}</button></view>
 
   <scroll-view class="step-scroll" scroll-x="true" enable-flex="true" show-scrollbar="false">
     <view class="step-list">
@@ -86,7 +86,7 @@
       <text class="group-label">内容密度</text>
       <view class="segmented"><view class="{{settings.spacing === 'compact' ? 'selected' : ''}}" data-spacing="compact" bindtap="selectSpacing">紧凑</view><view class="{{settings.spacing === 'standard' ? 'selected' : ''}}" data-spacing="standard" bindtap="selectSpacing">标准</view><view class="{{settings.spacing === 'comfortable' ? 'selected' : ''}}" data-spacing="comfortable" bindtap="selectSpacing">舒展</view></view>
       <view class="setting-row"><view><text>隐藏空白模块</text><text class="setting-hint">让预览只显示已填写的内容</text></view><switch checked="{{settings.hideEmptySections}}" color="#315be8" bindchange="toggleEmpty" /></view>
-      <view class="backup-box"><text class="backup-title">备份与迁移</text><text class="backup-help">与网页版兼容。复制 JSON 后可在另一端导入。</text><view class="backup-actions"><button bindtap="copyBackup">复制备份</button><button bindtap="importBackup">从剪贴板导入</button></view><button class="clear-link" bindtap="clearResume">清空简历内容</button></view>
+      <view class="backup-box"><text class="backup-title">备份与迁移</text><text class="backup-help">与网页版兼容。复制 JSON 后可在另一端导入。</text><view class="backup-actions"><button bindtap="copyBackup">复制备份</button><button bindtap="importBackup">从剪贴板导入</button></view><button wx:if="{{hasLocalBackup}}" class="restore-button" bindtap="restoreLocalBackup">恢复上次保留的本机草稿</button><button class="clear-link" bindtap="clearResume">清空简历内容</button></view>
     </block>
   </view>
 

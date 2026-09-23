@@ -1,4 +1,4 @@
-const { STORAGE_KEY, TEMPLATES, normalizeState, initialState, visibleSections, plainText } = require("../../utils/resume");
+const { userStorageKey, TEMPLATES, normalizeState, initialState, visibleSections, plainText } = require("../../utils/resume");
 
 const WEB_URL = "https://jianli-editor.lsy42706.chatgpt.site";
 
@@ -11,10 +11,13 @@ Page({
     hasContent: false
   },
   onShow() {
+    const account = getApp().globalData.account;
+    if (!account || !account.id) { wx.reLaunch({ url: "/pages/login/login" }); return; }
     let state;
     try {
-      const stored = wx.getStorageSync(STORAGE_KEY);
-      state = stored ? normalizeState(JSON.parse(stored)) : initialState();
+      const stored = wx.getStorageSync(userStorageKey(account.id));
+      const cached = stored && JSON.parse(stored);
+      state = cached && cached.draftJson ? normalizeState(JSON.parse(cached.draftJson)) : initialState();
     } catch (_) { state = initialState(); }
     const sections = visibleSections(state);
     const template = TEMPLATES.find((item) => item.id === state.settings.template) || TEMPLATES[0];
@@ -26,7 +29,11 @@ Page({
     if (!TEMPLATES.some((item) => item.id === template)) return;
     const settings = { ...this.data.settings, template };
     this.setData({ settings, templateName: TEMPLATES.find((item) => item.id === template).name, templateClass: template });
-    try { wx.setStorageSync(STORAGE_KEY, JSON.stringify({ resume: this.data.resume, settings, order: this.data.order })); }
+    try {
+      const account = getApp().globalData.account;
+      if (!account || !account.id) throw new Error("尚未登录");
+      wx.setStorageSync(userStorageKey(account.id), JSON.stringify({ draftJson: JSON.stringify({ resume: this.data.resume, settings, order: this.data.order }), revision: account.revision, pending: true }));
+    }
     catch (_) { wx.showToast({ title: "模板保存失败", icon: "none" }); }
   },
   copyText() {

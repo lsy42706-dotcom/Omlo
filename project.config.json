@@ -1,6 +1,7 @@
 {
   "description": "简历工坊微信小程序",
   "miniprogramRoot": "miniprogram/",
+  "cloudfunctionRoot": "cloudfunctions/",
   "projectname": "简历工坊",
   "appid": "touristappid",
   "compileType": "miniprogram",

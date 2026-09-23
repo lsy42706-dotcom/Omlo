@@ -44,13 +44,16 @@ test('mini backup stays compatible and import rejects external photos', () => {
 
 test('native editor handlers add, edit and persist collection rows', async () => {
   let definition;
-  let stored = '';
+  const storage = new Map();
+  const app = { globalData: { account: { id: 'openid-a', revision: 0, serverDraft: null }, initialDraft: null } };
   globalThis.Page = (page) => { definition = page; };
+  globalThis.getApp = () => app;
   globalThis.wx = {
-    getStorageSync: () => stored,
-    setStorageSync: (_, value) => { stored = value; },
+    getStorageSync: (key) => storage.get(key) || '',
+    setStorageSync: (key, value) => { storage.set(key, value); },
     showToast: () => {},
-    pageScrollTo: () => {}
+    pageScrollTo: () => {},
+    cloud: { callFunction: async () => ({ result: { ok: true, revision: 1 } }) }
   };
   try {
     await import('../miniprogram/pages/editor/editor.js');
@@ -76,9 +79,77 @@ test('native editor handlers add, edit and persist collection rows', async () =>
     page.persist();
     assert.equal(page.data.resume.educations[1].school, '第二所大学');
     assert.equal(page.data.resume.skillEntries[4].label, '实时系统');
-    assert.equal(JSON.parse(stored).resume.basics.name, '测试同学');
+    assert.equal(JSON.parse(JSON.parse(storage.get(mini.userStorageKey('openid-a'))).draftJson).resume.basics.name, '测试同学');
+    assert.equal(storage.has(mini.STORAGE_KEY), false);
+    clearTimeout(page.saveTimer);
+    clearTimeout(page.cloudTimer);
   } finally {
     delete globalThis.Page;
+    delete globalThis.getApp;
+    delete globalThis.wx;
+  }
+});
+
+test('login can choose the cloud draft without losing an unsynced device draft', async () => {
+  let definition;
+  const cloudDraft = JSON.stringify(mini.initialState());
+  const localState = mini.initialState();
+  localState.resume.basics.name = '本机版本';
+  const localDraft = JSON.stringify(localState);
+  const storage = new Map([[mini.userStorageKey('openid-a'), JSON.stringify({ draftJson: localDraft, revision: 0, pending: true })]]);
+  const app = { globalData: { cloudReady: true, account: null, initialDraft: null } };
+  let redirected = '';
+  globalThis.Page = (page) => { definition = page; };
+  globalThis.getApp = () => app;
+  globalThis.wx = {
+    cloud: { callFunction: async () => ({ result: { ok: true, accountId: 'openid-a', draftJson: cloudDraft, revision: 2 } }) },
+    getStorageSync: (key) => storage.get(key) || '',
+    setStorageSync: (key, value) => storage.set(key, value),
+    removeStorageSync: (key) => storage.delete(key),
+    showModal: ({ success }) => success({ confirm: false }),
+    redirectTo: ({ url }) => { redirected = url; }
+  };
+  try {
+    await import('../miniprogram/pages/login/login.js');
+    const page = { ...definition, data: structuredClone(definition.data), setData(patch) { Object.assign(this.data, patch); } };
+    await page.signIn();
+    assert.equal(redirected, '/pages/editor/editor');
+    assert.equal(app.globalData.initialDraft, cloudDraft);
+    assert.equal(storage.has(mini.userStorageKey('openid-a')), false);
+    assert.equal(JSON.parse(storage.get(`${mini.userStorageKey('openid-a')}:backup`)).draftJson, localDraft);
+  } finally {
+    delete globalThis.Page;
+    delete globalThis.getApp;
+    delete globalThis.wx;
+  }
+});
+
+test('preview reads and updates only the signed-in account cache', async () => {
+  let definition;
+  const state = mini.initialState();
+  state.resume.basics.name = '账号 A';
+  const storage = new Map([[mini.userStorageKey('a'), JSON.stringify({ draftJson: JSON.stringify(state), revision: 3, pending: false })]]);
+  const app = { globalData: { account: { id: 'a', revision: 3 } } };
+  globalThis.Page = (page) => { definition = page; };
+  globalThis.getApp = () => app;
+  globalThis.wx = {
+    getStorageSync: (key) => storage.get(key) || '',
+    setStorageSync: (key, value) => storage.set(key, value),
+    showToast: () => {}
+  };
+  try {
+    await import('../miniprogram/pages/preview/preview.js');
+    const page = { ...definition, data: structuredClone(definition.data), setData(patch) { Object.assign(this.data, patch); } };
+    page.onShow();
+    assert.equal(page.data.resume.basics.name, '账号 A');
+    page.selectTemplate({ currentTarget: { dataset: { template: 'modern' } } });
+    const cached = JSON.parse(storage.get(mini.userStorageKey('a')));
+    assert.equal(cached.pending, true);
+    assert.equal(JSON.parse(cached.draftJson).settings.template, 'modern');
+    assert.equal(storage.has(mini.STORAGE_KEY), false);
+  } finally {
+    delete globalThis.Page;
+    delete globalThis.getApp;
     delete globalThis.wx;
   }
 });

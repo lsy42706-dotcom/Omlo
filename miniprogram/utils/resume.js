@@ -1,4 +1,5 @@
 const STORAGE_KEY = "resume-workshop-state";
+const userStorageKey = (accountId) => `${STORAGE_KEY}:user:${accountId}`;
 const ORDER = ["基本信息", "教育经历", "项目经历", "技能", "自我评价"];
 const TEMPLATES = [
   { id: "classic", name: "经典简洁", note: "清晰稳妥" },
@@ -117,4 +118,4 @@ function plainText(state) {
   }
   return lines.join("\n").trim();
 }
-module.exports = { STORAGE_KEY, ORDER, TEMPLATES, emptyEducation, emptyProject, emptySkill, initialState, normalizeState, parseBackup, createBackup, completion, visibleSections, plainText };
+module.exports = { STORAGE_KEY, userStorageKey, ORDER, TEMPLATES, emptyEducation, emptyProject, emptySkill, initialState, normalizeState, parseBackup, createBackup, completion, visibleSections, plainText };

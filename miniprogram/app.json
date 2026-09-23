@@ -1,5 +1,5 @@
 {
-  "pages": ["pages/editor/editor", "pages/preview/preview"],
+  "pages": ["pages/login/login", "pages/editor/editor", "pages/preview/preview"],
   "window": {
     "navigationBarTitleText": "简历工坊",
     "navigationBarBackgroundColor": "#f5f7fb",
