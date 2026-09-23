@@ -1,6 +1,0 @@
-<view class="login-page safe-bottom">
-  <view class="login-brand"><view class="brand-mark">简</view><text>简历工坊</text></view>
-  <view class="login-hero"><text class="eyebrow">YOUR RESUME, YOUR SPACE</text><text class="title">继续完善你的简历</text><text class="description">用微信身份登录，自动找回保存在云端的草稿。从编辑到预览，你的内容只归当前账号。</text></view>
-  <view class="login-card"><view class="card-symbol">✦</view><text class="card-title">登录后继续编辑</text><text class="card-copy">草稿按微信身份单独保存。更换设备后，登录同一微信即可继续。</text><button class="login-button" disabled="{{busy || !configured}}" bindtap="signIn">{{busy ? '正在连接…' : '微信身份登录'}}</button><text wx:if="{{!configured}}" class="setup-note">尚未连接云开发环境，暂时无法使用微信登录。</text><button class="local-button" disabled="{{busy}}" bindtap="startLocal">仅本机试用</button><text class="local-note">试用草稿只保存在这台设备，无法跨设备恢复。开通云开发后可导入微信账号。</text><text wx:if="{{error}}" class="error-note">{{error}}</text></view>
-  <view class="privacy-note"><text>草稿保存在关联的云开发环境及当前设备。登录不会读取微信昵称、头像或通讯录。</text></view>
-</view>
