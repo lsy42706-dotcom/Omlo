@@ -2,13 +2,22 @@ export const STORAGE_KEY = "resume-workshop-state";
 export const SECTION_ORDER = ["基本信息", "教育经历", "项目经历", "技能", "自我评价"];
 export const hasText = (value) => typeof value === "string" && value.trim().length > 0;
 export const hasProjectContent = (project) => [project.name, project.role, project.description, project.startDate, project.endDate, ...(project.achievements || [])].some(hasText);
+export const hasEducationContent = (entry) => [entry.school, entry.major, entry.degree, entry.startDate, entry.endDate, entry.location].some(hasText);
+export const DEFAULT_SKILL_LABELS = { languages: "编程语言", embedded: "嵌入式开发", protocols: "通信协议", tools: "开发工具" };
+export const educationEntries = (resume) => Array.isArray(resume.educations) ? resume.educations : resume.education ? [resume.education] : [];
+export const skillEntries = (resume) => Array.isArray(resume.skillEntries) ? resume.skillEntries : Object.entries(DEFAULT_SKILL_LABELS).map(([key, label]) => ({ id: key, label: resume.skillLabels?.[key] || label, value: resume.skills?.[key] || "" }));
+export function normalizeResumeCollections(value = {}) {
+  const educations = educationEntries(value).map((entry, index) => ({ id: `education-${index + 1}`, school: entry.school || "", major: entry.major || "", degree: entry.degree || "", startDate: entry.startDate || "", endDate: entry.endDate || "", location: entry.location || "" }));
+  const skills = skillEntries(value).map((entry, index) => ({ id: `skill-${index + 1}`, label: entry.label || "", value: entry.value || "" }));
+  return { educations, skillEntries: skills };
+}
 export const normalizeOrder = (value) => [...new Set([...(Array.isArray(value) ? value.filter((key) => SECTION_ORDER.includes(key)) : []), ...SECTION_ORDER])];
 
 export function sectionHasContent(key, resume) {
   if (key === "基本信息") return hasText(resume.basics.summary);
-  if (key === "教育经历") return Object.values(resume.education).some(hasText);
+  if (key === "教育经历") return educationEntries(resume).some(hasEducationContent);
   if (key === "项目经历") return resume.projects.some(hasProjectContent);
-  if (key === "技能") return Object.values(resume.skills).some(hasText);
+  if (key === "技能") return skillEntries(resume).some((entry) => hasText(entry.value));
   if (key === "自我评价") return hasText(resume.selfEvaluation);
   return false;
 }
@@ -16,9 +25,9 @@ export function sectionHasContent(key, resume) {
 export function resumeCompletion(resume) {
   const groups = [
     [hasText(resume.basics.name), hasText(resume.basics.jobTitle), [resume.basics.phone, resume.basics.email].some(hasText)],
-    [resume.education.school, resume.education.major].map(hasText),
+    [educationEntries(resume).some((entry) => hasText(entry.school) && hasText(entry.major))],
     [resume.projects.some((project) => hasText(project.name) && hasText(project.description))],
-    [Object.values(resume.skills).some(hasText)],
+    [skillEntries(resume).some((entry) => hasText(entry.value))],
   ];
   const checks = groups.flat();
   return { percent: Math.round(checks.filter(Boolean).length / checks.length * 100), steps: groups.map((group) => group.every(Boolean)) };
@@ -44,6 +53,10 @@ export function parseResumeBackup(text) {
   textFields(r.education, ["school", "major", "degree", "startDate", "endDate", "location"]);
   textFields(r.skills, ["languages", "embedded", "protocols", "tools"]);
   textFields(r.skillLabels, ["languages", "embedded", "protocols", "tools"]);
+  if (r.educations !== undefined && (!Array.isArray(r.educations) || r.educations.length > 50)) invalid();
+  for (const entry of r.educations || []) textFields(entry, ["id", "school", "major", "degree", "startDate", "endDate", "location"]);
+  if (r.skillEntries !== undefined && (!Array.isArray(r.skillEntries) || r.skillEntries.length > 100)) invalid();
+  for (const entry of r.skillEntries || []) textFields(entry, ["id", "label", "value"]);
   textFields(r.sectionTitles, SECTION_ORDER);
   if (r.basics?.photo != null && (typeof r.basics.photo !== "string" || !/^data:image\/(png|jpeg);base64,[a-z\d+/=\s]+$/i.test(r.basics.photo))) invalid();
   if (r.projects !== undefined && (!Array.isArray(r.projects) || r.projects.length > 100)) invalid();
@@ -54,7 +67,7 @@ export function parseResumeBackup(text) {
   }
   if (state.settings !== undefined && !isRecord(state.settings)) invalid();
   const settings = { ...(state.settings || {}) };
-  if (!["classic", "tech", "modern"].includes(settings.template)) delete settings.template;
+  if (!["classic", "tech", "modern", "minimal", "academic"].includes(settings.template)) delete settings.template;
   if (!["compact", "standard", "comfortable"].includes(settings.spacing)) delete settings.spacing;
   if (!/^#[a-f\d]{6}$/i.test(settings.accent || "")) delete settings.accent;
   for (const key of ["showPhoto", "pageBorder", "hideEmptySections"]) if (typeof settings[key] !== "boolean") delete settings[key];

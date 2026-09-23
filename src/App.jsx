@@ -10,7 +10,7 @@ import {
   IconArrowBackUp as Undo2, IconUser as UserRound,
 } from "@tabler/icons-react";
 import { optimizeProjectCopy, projectHasOptimizableContent } from "./copyOptimizer.js";
-import { normalizeOrder, hasText, hasProjectContent, sectionHasContent, resumeCompletion, parseResumeBackup, readStoredResume, saveResume, createBackup } from "./resumeData.js";
+import { normalizeOrder, hasText, hasProjectContent, hasEducationContent, sectionHasContent, resumeCompletion, parseResumeBackup, readStoredResume, saveResume, createBackup, normalizeResumeCollections } from "./resumeData.js";
 import { Modal } from "./Modal.jsx";
 
 const initialProject = {
@@ -23,21 +23,22 @@ const initialProject = {
   achievements: [""],
 };
 const emptyProject = () => ({ id: `project-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: "", role: "", startDate: "", endDate: "", description: "", achievements: [""] });
-const skillDefinitions = [
-  { key: "languages", defaultLabel: "编程语言" },
-  { key: "embedded", defaultLabel: "嵌入式开发" },
-  { key: "protocols", defaultLabel: "通信协议" },
-  { key: "tools", defaultLabel: "开发工具" },
-];
+const initialEducation = { id: "education-1", school: "", major: "", degree: "", startDate: "", endDate: "", location: "" };
+const emptyEducation = () => ({ ...initialEducation, id: `education-${crypto.randomUUID()}` });
+const emptySkill = () => ({ id: `skill-${crypto.randomUUID()}`, label: "", value: "" });
 
 const initialResume = {
   title: "",
   sectionTitles: { 基本信息: "个人简介", 教育经历: "教育经历", 项目经历: "项目经历", 技能: "专业技能", 自我评价: "自我评价" },
   basics: { name: "", jobTitle: "", phone: "", email: "", location: "", photo: null, summary: "" },
-  education: { school: "", major: "", degree: "", startDate: "", endDate: "", location: "" },
+  educations: [initialEducation],
   projects: [initialProject],
-  skills: { languages: "", embedded: "", protocols: "", tools: "" },
-  skillLabels: { languages: "编程语言", embedded: "嵌入式开发", protocols: "通信协议", tools: "开发工具" },
+  skillEntries: [
+    { id: "skill-languages", label: "编程语言", value: "" },
+    { id: "skill-embedded", label: "嵌入式开发", value: "" },
+    { id: "skill-protocols", label: "通信协议", value: "" },
+    { id: "skill-tools", label: "开发工具", value: "" },
+  ],
   selfEvaluation: "",
 };
 const initialSettings = {
@@ -49,6 +50,8 @@ const templates = [
   { id: "classic", name: "经典简洁", note: "简洁大方，适合多数岗位" },
   { id: "tech", name: "技术专才", note: "突出技术能力，适合技术岗位" },
   { id: "modern", name: "现代双栏", note: "版式现代，信息层次清晰" },
+  { id: "minimal", name: "极简留白", note: "纯净克制，突出经历内容" },
+  { id: "academic", name: "学术履历", note: "正式稳重，适合研究与申请" },
 ];
 const defaultOrder = ["基本信息", "教育经历", "项目经历", "技能", "自我评价"];
 const moduleDefinitions = {
@@ -74,7 +77,7 @@ function TemplateThumb({ template, selected, onSelect }) {
 function SectionHeading({ children }) { return <h3 className="resume-section-title">{children}</h3>; }
 
 function ResumePreview({ resume, settings, order, previewRef }) {
-  const { basics, education, projects, skills } = resume;
+  const { basics, educations, projects, skillEntries } = resume;
   const localPreviewRef = useRef(null);
   const [fitLevel, setFitLevel] = useState(0);
   const fitClasses = ["fit-normal", "fit-compact"];
@@ -86,10 +89,11 @@ function ResumePreview({ resume, settings, order, previewRef }) {
     ? <p>{text || fallback}</p>
     : <ul className={`content-points ${layout === "columns" ? "two-columns" : ""}`}>{splitPoints(text, fallback).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>;
   const visibleProjects = settings.hideEmptySections ? projects.filter(hasProjectContent) : projects;
-  const skillGroups = skillDefinitions.filter(({ key }) => !settings.hideEmptySections || hasText(skills[key])).map(({ key, defaultLabel }) => [resume.skillLabels?.[key] || defaultLabel, skills[key], key]);
+  const visibleEducations = settings.hideEmptySections ? educations.filter(hasEducationContent) : educations;
+  const skillGroups = skillEntries.filter((entry) => !settings.hideEmptySections || hasText(entry.value)).map((entry) => [entry.label || "技能分类", entry.value, entry.id]);
   const sections = {
     基本信息: <section key="basic" className={`module-section module-summary layout-${layoutFor("基本信息")}`}><SectionHeading>{titleFor("基本信息")}</SectionHeading>{pointContent(basics.summary, "请补充个人简介。", layoutFor("基本信息"))}</section>,
-    教育经历: <section key="education" className={`module-section module-education layout-${layoutFor("教育经历")}`}><SectionHeading>{titleFor("教育经历")}</SectionHeading><div className="education-entry"><div className="resume-row"><strong>{education.school || "学校名称"}</strong><span>{[education.startDate, education.endDate].filter(hasText).join(" — ")}</span></div><div className="resume-row muted"><span>{education.major}{education.degree ? `（${education.degree}）` : ""}</span><span>{education.location}</span></div></div></section>,
+    教育经历: <section key="education" className={`module-section module-education layout-${layoutFor("教育经历")}`}><SectionHeading>{titleFor("教育经历")}</SectionHeading>{visibleEducations.map((entry) => <div className="education-entry" key={entry.id}><div className="resume-row"><strong>{entry.school || "学校名称"}</strong><span>{[entry.startDate, entry.endDate].filter(hasText).join(" — ")}</span></div><div className="resume-row muted"><span>{entry.major}{entry.degree ? `（${entry.degree}）` : ""}</span><span>{entry.location}</span></div></div>)}</section>,
     项目经历: <section key="project" className={`module-section module-project layout-${layoutFor("项目经历")}`}><SectionHeading>{titleFor("项目经历")}</SectionHeading>{visibleProjects.map((project, projectIndex) => <div className="project-entry" key={project.id || projectIndex}><div className="resume-row project-title-row"><strong>{project.name || `项目 ${projectIndex + 1}`}</strong><span>{[project.startDate, project.endDate].filter(hasText).join(" — ")}</span></div>{hasText(project.role) && <div className="resume-role">{project.role}</div>}{hasText(project.description) && layoutFor("项目经历") === "structured" && <span className="content-label">项目概述</span>}<ul className="content-points project-points">{splitPoints(project.description).map((item, index) => <li key={`description-${index}`}>{item}</li>)}{project.achievements.filter(Boolean).map((item, index) => <li key={`achievement-${index}`}>{item}</li>)}</ul></div>)}</section>,
     技能: <section key="skills" className={`module-section module-skills layout-${layoutFor("技能")}`}><SectionHeading>{titleFor("技能")}</SectionHeading>{layoutFor("技能") === "tags" ? <div className="skill-groups">{skillGroups.map(([label, value, key]) => <div className="skill-group" key={key}><b>{label}</b><span>{splitTags(value).map((tag) => <i key={tag}>{tag}</i>)}</span></div>)}</div> : <ul className="skills-list">{skillGroups.map(([label, value, key]) => <li key={key}><b>{label}：</b>{value}</li>)}</ul>}</section>,
     自我评价: <section key="evaluation" className={`module-section module-evaluation layout-${layoutFor("自我评价")}`}><SectionHeading>{titleFor("自我评价")}</SectionHeading>{pointContent(resume.selfEvaluation, "请补充自我评价。", layoutFor("自我评价"))}</section>,
@@ -128,7 +132,7 @@ function ResumePreview({ resume, settings, order, previewRef }) {
   }, [fitLevel, resume, settings, order]);
   return <div ref={setPreviewNode} className={`resume-page resume-${settings.template} density-${settings.spacing} ${fitClasses[fitLevel]} ${settings.showPhoto ? "" : "hide-photo"} ${settings.pageBorder ? "" : "no-page-border"}`} style={{ "--resume-accent": settings.accent }} id="resume-preview" data-fit-level={fitClasses[fitLevel]}>
     <div className="tech-bar" />
-    <aside className="modern-sidebar">{settings.showPhoto && photoSrc && <img src={photoSrc} alt={`${basics.name}证件照`} />}{[basics.phone, basics.email, basics.location].some(hasText) && <div className="sidebar-block"><strong>联系方式</strong><span>{basics.phone}</span><span>{basics.email}</span><span>{basics.location}</span></div>}{Object.values(skills).some(hasText) && <div className="sidebar-block"><strong>核心技能</strong>{skillGroups.map(([label, value, key]) => <span key={key}>{value}</span>)}</div>}</aside>
+    <aside className="modern-sidebar">{settings.showPhoto && photoSrc && <img src={photoSrc} alt={`${basics.name}证件照`} />}{[basics.phone, basics.email, basics.location].some(hasText) && <div className="sidebar-block"><strong>联系方式</strong><span>{basics.phone}</span><span>{basics.email}</span><span>{basics.location}</span></div>}{skillGroups.some(([, value]) => hasText(value)) && <div className="sidebar-block"><strong>核心技能</strong>{skillGroups.filter(([, value]) => hasText(value)).map(([label, value, key]) => <span key={key}>{label} · {value}</span>)}</div>}</aside>
     <main className="resume-main"><header className="resume-header"><div><h1>{basics.name || "你的姓名"}</h1><p>{basics.jobTitle || "求职岗位"}</p><div className="contact-row">{hasText(basics.phone) && <span><Phone size={10} />{basics.phone}</span>}{hasText(basics.email) && <span><Mail size={10} />{basics.email}</span>}{hasText(basics.location) && <span><MapPin size={10} />{basics.location}</span>}</div></div>{settings.showPhoto && photoSrc && <img src={photoSrc} alt={`${basics.name}证件照`} />}</header>{order.filter((name) => !settings.hideEmptySections || sectionHasContent(name, resume)).map((name) => sections[name])}</main>
   </div>;
 }
@@ -140,16 +144,14 @@ function downloadBlob(blob, filename) {
 }
 const deepCopy = (value) => JSON.parse(JSON.stringify(value));
 const hydrateResume = (value) => ({
-  ...deepCopy(initialResume), ...value,
+  ...deepCopy(initialResume), ...Object.fromEntries(Object.entries(value || {}).filter(([key]) => !["education", "skills", "skillLabels", "educations", "skillEntries"].includes(key))),
   sectionTitles: { ...initialResume.sectionTitles, ...(value?.sectionTitles || {}) },
   basics: { ...initialResume.basics, ...(value?.basics || {}) },
-  education: { ...initialResume.education, ...(value?.education || {}) },
+  ...normalizeResumeCollections(value || initialResume),
   project: undefined,
   projects: Array.isArray(value?.projects) && value.projects.length
     ? value.projects.map((project, index) => ({ ...initialProject, ...project, id: `project-${index + 1}`, achievements: Array.isArray(project.achievements) ? project.achievements : [] }))
     : [{ ...initialProject, ...(value?.project || {}), id: value?.project?.id || "project-1", achievements: Array.isArray(value?.project?.achievements) ? value.project.achievements : initialProject.achievements }],
-  skills: { ...initialResume.skills, ...(value?.skills || {}) },
-  skillLabels: { ...initialResume.skillLabels, ...(value?.skillLabels || {}) },
 });
 const hydrateSettings = (value) => ({
   ...initialSettings, ...(value || {}),
@@ -237,7 +239,12 @@ export function App() {
   const updateSetting = (field, value) => commit(() => setSettings((current) => ({ ...current, [field]: value })));
   const updateSectionTitle = (section, value) => commit(() => setResume((current) => ({ ...current, sectionTitles: { ...current.sectionTitles, [section]: value } })));
   const updateModuleLayout = (section, value) => commit(() => setSettings((current) => ({ ...current, moduleLayouts: { ...current.moduleLayouts, [section]: value } })));
-  const updateSkillLabel = (key, value) => commit(() => setResume((current) => ({ ...current, skillLabels: { ...current.skillLabels, [key]: value } })));
+  const updateEducation = (id, field, value) => commit(() => setResume((current) => ({ ...current, educations: current.educations.map((entry) => entry.id === id ? { ...entry, [field]: value } : entry) })));
+  const addEducation = () => { if (resume.educations.length >= 50) { setToast("最多可添加 50 段教育经历"); return; } commit(() => setResume((current) => ({ ...current, educations: [...current.educations, emptyEducation()] }))); };
+  const removeEducation = (id) => commit(() => setResume((current) => ({ ...current, educations: current.educations.filter((entry) => entry.id !== id) })));
+  const updateSkill = (id, field, value) => commit(() => setResume((current) => ({ ...current, skillEntries: current.skillEntries.map((entry) => entry.id === id ? { ...entry, [field]: value } : entry) })));
+  const addSkill = () => { if (resume.skillEntries.length >= 100) { setToast("最多可添加 100 个技能分类"); return; } commit(() => setResume((current) => ({ ...current, skillEntries: [...current.skillEntries, emptySkill()] }))); };
+  const removeSkill = (id) => commit(() => setResume((current) => ({ ...current, skillEntries: current.skillEntries.filter((entry) => entry.id !== id) })));
   const selectTemplate = (id) => { if (id === settings.template) return; updateSetting("template", id); setToast(`已切换为${templates.find((t) => t.id === id)?.name}`); };
   const updateProject = (projectIndex, field, value) => commit(() => setResume((current) => ({ ...current, projects: current.projects.map((project, index) => index === projectIndex ? { ...project, [field]: value } : project) })));
   const updateAchievement = (projectIndex, achievementIndex, value) => commit(() => setResume((current) => ({ ...current, projects: current.projects.map((project, index) => index === projectIndex ? { ...project, achievements: project.achievements.map((item, itemIndex) => itemIndex === achievementIndex ? value : item) } : project) })));
@@ -350,14 +357,14 @@ export function App() {
       const bullet = (text) => new Paragraph({ text, bullet: { level: 0 }, spacing: { after: 70 } });
       const titled = (section) => resume.sectionTitles?.[section] || moduleDefinitions[section].defaultTitle;
       const textBlock = (section, text) => settings.moduleLayouts?.[section] === "paragraph" ? [new Paragraph(text)] : splitPoints(text).map(bullet);
-      const b = resume.basics, e = resume.education, s = resume.skills;
+      const b = resume.basics;
       const projectBlocks = resume.projects.filter(hasProjectContent).flatMap((project, index) => [
         new Paragraph({ spacing: { before: index ? 160 : 0, after: 60 }, children: [new TextRun({ text: project.name, bold: true }), new TextRun(`  ${[project.startDate, project.endDate].filter(hasText).join(" — ")}`)] }),
         ...(hasText(project.role) ? [new Paragraph({ text: project.role, spacing: { after: 60 } })] : []),
         ...splitPoints(project.description).map(bullet),
         ...project.achievements.filter(Boolean).map(bullet),
       ]);
-      const skillBlocks = skillDefinitions.filter(({ key }) => hasText(s[key])).map(({ key, defaultLabel }) => bullet(`${resume.skillLabels?.[key] || defaultLabel}：${s[key]}`));
+      const skillBlocks = resume.skillEntries.filter((entry) => hasText(entry.value)).map((entry) => bullet(`${entry.label || "技能分类"}：${entry.value}`));
       const photoChildren = [];
       if (settings.showPhoto && b.photo) {
         const photoResponse = await fetch(b.photo); const photoData = new Uint8Array(await photoResponse.arrayBuffer());
@@ -366,7 +373,7 @@ export function App() {
       }
       const sectionBlocks = {
         基本信息: textBlock("基本信息", b.summary),
-        教育经历: [new Paragraph({ children: [new TextRun({ text: e.school, bold: true }), new TextRun(`  ${[e.major, e.degree].filter(hasText).join(" · ")}  ${[e.startDate, e.endDate].filter(hasText).join(" — ")}`)] })],
+        教育经历: resume.educations.filter(hasEducationContent).map((entry, index) => new Paragraph({ spacing: { before: index ? 120 : 0, after: 70 }, children: [new TextRun({ text: entry.school, bold: true }), new TextRun(`  ${[entry.major, entry.degree].filter(hasText).join(" · ")}  ${[entry.startDate, entry.endDate].filter(hasText).join(" — ")}${hasText(entry.location) ? `  ${entry.location}` : ""}`)] })),
         项目经历: projectBlocks, 技能: skillBlocks, 自我评价: textBlock("自我评价", resume.selfEvaluation),
       };
       const orderedBlocks = order.filter((key) => sectionHasContent(key, resume)).flatMap((key) => [heading(titled(key)), ...sectionBlocks[key]]);
@@ -419,11 +426,29 @@ export function App() {
     <div className="form-grid">{field("项目名称", currentProject.name, (v) => updateProject(activeProjectIndex, "name", v), { full: true, required: true, max: 100 })}{field("担任角色", currentProject.role, (v) => updateProject(activeProjectIndex, "role", v), { required: true, max: 50 })}<label><span>项目时间 <b>*</b></span><div className="date-group"><CalendarDays size={17} /><input aria-label="项目开始时间" value={currentProject.startDate} onChange={(e) => updateProject(activeProjectIndex, "startDate", e.target.value)} /><i>—</i><input aria-label="项目结束时间" value={currentProject.endDate} onChange={(e) => updateProject(activeProjectIndex, "endDate", e.target.value)} /></div></label>{field("项目描述", currentProject.description, (v) => updateProject(activeProjectIndex, "description", v), { full: true, textarea: true, required: true, max: 500, hint: "描述会按句号或换行拆成独立要点" })}</div>
     <div className="achievement-block"><span className="field-label">项目成果</span>{currentProject.achievements.map((item, index) => <div className="achievement-row" key={index}><GripVertical size={17} /><input aria-label={`项目 ${activeProjectIndex + 1} 成果 ${index + 1}`} value={item} onChange={(e) => updateAchievement(activeProjectIndex, index, e.target.value)} /><button type="button" onClick={() => removeAchievement(activeProjectIndex, index)} aria-label={`删除项目 ${activeProjectIndex + 1} 成果 ${index + 1}`}><Trash2 size={17} /></button></div>)}<button type="button" className="add-button" onClick={() => addAchievement(activeProjectIndex)}><Plus size={16} /> 添加成果</button></div>
   </>;
-  const skillsEditor = <div className="skill-editor-list">{skillDefinitions.map(({ key, defaultLabel }) => <div className="skill-editor-row" key={key}><label><span>分类名称</span><input aria-label={`${defaultLabel}分类名称`} value={resume.skillLabels?.[key] || ""} maxLength={12} placeholder={defaultLabel} onChange={(e) => updateSkillLabel(key, e.target.value)} /></label><label><span>{resume.skillLabels?.[key] || defaultLabel}内容</span><input aria-label={`${defaultLabel}技能内容`} value={resume.skills[key]} maxLength={160} onChange={(e) => updateNested("skills", key, e.target.value)} /></label></div>)}</div>;
+  const skillsEditor = <div className="skill-editor-list">
+    {resume.skillEntries.map((entry, index) => <div className="skill-editor-row editable-collection-row" key={entry.id}>
+      <div className="collection-row-head"><strong>技能分类 {index + 1}</strong><button type="button" className="delete-project-button" aria-label={`删除技能分类 ${index + 1}`} onClick={() => removeSkill(entry.id)}><Trash2 size={15} /> 删除</button></div>
+      <label><span>分类名称</span><input aria-label={`技能分类 ${index + 1} 名称`} value={entry.label} maxLength={20} placeholder="如：编程语言" onChange={(e) => updateSkill(entry.id, "label", e.target.value)} /></label>
+      <label><span>技能内容</span><input aria-label={`技能分类 ${index + 1} 内容`} value={entry.value} maxLength={160} placeholder="如：C、Python" onChange={(e) => updateSkill(entry.id, "value", e.target.value)} /></label>
+    </div>)}
+    <button type="button" className="add-project-button collection-add" disabled={resume.skillEntries.length >= 100} onClick={addSkill}><Plus size={16} /> 新增技能分类</button>
+  </div>;
 
   const forms = [
     <><div className="section-heading"><div><h2>填写基本信息</h2><p>完善联系方式和个人简介，预览将实时同步</p></div></div>{photoEditor}<div className="form-grid">{field("姓名", resume.basics.name, (v) => updateNested("basics", "name", v), { required: true })}{field("求职岗位", resume.basics.jobTitle, (v) => updateNested("basics", "jobTitle", v), { required: true })}{field("手机号码", resume.basics.phone, (v) => updateNested("basics", "phone", v))}{field("电子邮箱", resume.basics.email, (v) => updateNested("basics", "email", v), { type: "email" })}{field("所在城市", resume.basics.location, (v) => updateNested("basics", "location", v))}{field("个人简介", resume.basics.summary, (v) => updateNested("basics", "summary", v), { full: true, textarea: true, max: 300, hint: "换行或使用句号，预览会自动拆分为要点" })}</div></>,
-    <><div className="section-heading"><div><h2>添加教育经历</h2><p>填写最高学历或与目标岗位最相关的教育经历</p></div></div><div className="form-grid">{field("学校名称", resume.education.school, (v) => updateNested("education", "school", v), { full: true, required: true })}{field("专业", resume.education.major, (v) => updateNested("education", "major", v))}{field("学历", resume.education.degree, (v) => updateNested("education", "degree", v))}{field("开始时间", resume.education.startDate, (v) => updateNested("education", "startDate", v))}{field("结束时间", resume.education.endDate, (v) => updateNested("education", "endDate", v))}{field("所在城市", resume.education.location, (v) => updateNested("education", "location", v), { full: true })}</div></>,
+    <><div className="section-heading"><div><h2>添加教育经历</h2><p>可填写多段教育经历，并自由增减</p></div></div>
+      <div className="education-editor-list">{resume.educations.map((entry, index) => <section className="editable-collection-card" key={entry.id}>
+        <div className="collection-row-head"><strong>教育经历 {index + 1}</strong><button type="button" className="delete-project-button" aria-label={`删除教育经历 ${index + 1}`} onClick={() => removeEducation(entry.id)}><Trash2 size={15} /> 删除</button></div>
+        <div className="form-grid">{field(`教育经历 ${index + 1} 学校名称`, entry.school, (value) => updateEducation(entry.id, "school", value), { full: true, required: true })}
+        {field(`教育经历 ${index + 1} 专业`, entry.major, (value) => updateEducation(entry.id, "major", value))}
+        {field(`教育经历 ${index + 1} 学历`, entry.degree, (value) => updateEducation(entry.id, "degree", value))}
+        {field(`教育经历 ${index + 1} 开始时间`, entry.startDate, (value) => updateEducation(entry.id, "startDate", value))}
+        {field(`教育经历 ${index + 1} 结束时间`, entry.endDate, (value) => updateEducation(entry.id, "endDate", value))}
+        {field(`教育经历 ${index + 1} 所在城市`, entry.location, (value) => updateEducation(entry.id, "location", value), { full: true })}</div>
+      </section>)}</div>
+      <button type="button" className="add-project-button collection-add" disabled={resume.educations.length >= 50} onClick={addEducation}><Plus size={16} /> 新增教育经历</button>
+    </>,
     <><div className="section-heading"><div><h2>添加项目经历</h2><p>可添加多段项目，并分别填写职责与成果</p></div></div>{projectEditor}</>,
     <><div className="section-heading"><div><h2>完善技能与自我评价</h2><p>分类名称和技能内容都可自行修改</p></div></div>{skillsEditor}<div className="form-grid evaluation-editor">{field("自我评价", resume.selfEvaluation, (v) => updateRoot("selfEvaluation", v), { full: true, textarea: true, max: 300, hint: "换行或使用句号，默认以要点展示" })}</div></>,
     <><div className="section-heading"><div><h2>调整简历样式</h2><p>自定义模块名称、内容布局和整体视觉</p></div></div><div className="style-controls"><span className="field-label">强调色</span><div className="color-row">{["#2e5bea", "#0f766e", "#7c3aed", "#c2410c"].map((color) => <button type="button" key={color} aria-label={`选择强调色 ${color}`} aria-pressed={settings.accent === color} className={settings.accent === color ? "active" : ""} style={{ background: color }} onClick={() => updateSetting("accent", color)} />)}</div><label><span className="field-label">内容密度</span><select aria-label="内容密度" value={settings.spacing} onChange={(e) => updateSetting("spacing", e.target.value)}><option value="compact">紧凑</option><option value="standard">标准</option><option value="comfortable">舒展</option></select></label><label className="toggle-row"><span>显示证件照</span><input type="checkbox" checked={settings.showPhoto} onChange={(e) => updateSetting("showPhoto", e.target.checked)} /></label><label className="toggle-row"><span>显示 A4 页面边界</span><input type="checkbox" checked={settings.pageBorder} onChange={(e) => updateSetting("pageBorder", e.target.checked)} /></label></div>{moduleCustomizer}</>,

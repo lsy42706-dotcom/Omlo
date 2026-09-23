@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseResumeBackup, createBackup, normalizeOrder, SECTION_ORDER, resumeCompletion, sectionHasContent, readStoredResume, saveResume, STORAGE_KEY } from '../src/resumeData.js';
+import { parseResumeBackup, createBackup, normalizeOrder, SECTION_ORDER, resumeCompletion, sectionHasContent, readStoredResume, saveResume, STORAGE_KEY, normalizeResumeCollections } from '../src/resumeData.js';
 
 const blank = () => ({ basics: { name: '', jobTitle: '', phone: '', email: '', summary: '' }, education: { school: '', major: '' }, projects: [{ name: '', description: '', achievements: [''] }], skills: { languages: '' }, selfEvaluation: '' });
 test('completion measures actual content, including email when phone is whitespace', () => {
@@ -31,8 +31,27 @@ test('legacy backups remain readable and invalid settings use safe defaults', ()
   assert.deepEqual(parsed.settings, { moduleLayouts: {} });
   assert.deepEqual(parsed.order, SECTION_ORDER);
 });
+test('older single education and fixed skills migrate without dropping user content', () => {
+  const migrated = normalizeResumeCollections({ education: { school: '测试大学', major: '电子工程' }, skills: { embedded: 'STM32', languages: 'C' }, skillLabels: { embedded: '硬件开发' } });
+  assert.equal(migrated.educations.length, 1);
+  assert.equal(migrated.educations[0].school, '测试大学');
+  assert.deepEqual(migrated.skillEntries.filter((entry) => entry.value).map(({ label, value }) => [label, value]), [['编程语言', 'C'], ['硬件开发', 'STM32']]);
+});
+test('multiple education and custom skills survive backup and affect completeness', () => {
+  const resume = { ...blank(), educations: [{ id: 'a', school: '甲大学', major: '电子工程' }, { id: 'b', school: '乙大学', major: '计算机' }], skillEntries: [{ id: 's', label: '实时系统', value: 'FreeRTOS' }] };
+  assert.equal(sectionHasContent('教育经历', resume), true);
+  assert.equal(sectionHasContent('技能', resume), true);
+  assert.equal(resumeCompletion(resume).steps[1], true);
+  const parsed = parseResumeBackup(createBackup({ resume, settings: { template: 'academic' }, order: SECTION_ORDER }));
+  assert.equal(parsed.resume.educations.length, 2);
+  assert.deepEqual(parsed.resume.skillEntries, resume.skillEntries);
+  assert.equal(parsed.settings.template, 'academic');
+  const reduced = { ...resume, educations: [], skillEntries: [] };
+  assert.equal(sectionHasContent('教育经历', reduced), false);
+  assert.equal(sectionHasContent('技能', reduced), false);
+});
 test('malformed and oversized imports fail before changing state', () => {
-  const invalid = ['oops', 'null', '{}', '{"resume":{"basics":[]}}', '{"resume":{"projects":[null]}}', '{"resume":{"skills":{"languages":[]}}}', '{"version":2,"resume":{}}', '{"resume":{"project":{"achievements":[{}]}}}', '{"resume":{"basics":{"photo":"https://example.com/photo.png"}}}'];
+  const invalid = ['oops', 'null', '{}', '{"resume":{"basics":[]}}', '{"resume":{"projects":[null]}}', '{"resume":{"skills":{"languages":[]}}}', '{"resume":{"educations":[null]}}', '{"resume":{"skillEntries":[{"label":7}]}}', '{"version":2,"resume":{}}', '{"resume":{"project":{"achievements":[{}]}}}', '{"resume":{"basics":{"photo":"https://example.com/photo.png"}}}'];
   for (const value of invalid) assert.throws(() => parseResumeBackup(value));
   assert.throws(() => parseResumeBackup(' '.repeat(8 * 1024 * 1024 + 1)), /8 MB/);
 });

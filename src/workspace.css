@@ -70,6 +70,8 @@ body, .app-shell { background: #f5f7fb; }
 .preview-toolbar > div > span { font-size: 11px; color: #64748b; }
 .preview-toolbar .secondary-button { min-height: 34px; height: 34px; padding: 0 10px; font-size: 11px; background: #f7f9fc; }
 .template-strip { display: flex; align-items: center; gap: 6px; padding: 0 18px 16px; }
+.template-strip { overflow-x: auto; scrollbar-width: thin; }
+.template-strip button { flex: 0 0 auto; }
 .template-strip button { border: 1px solid transparent; background: #f5f7fb; min-height: 34px; border-radius: 8px; padding: 0 12px; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #536178; cursor: pointer; white-space: nowrap; }
 .template-strip button[aria-pressed="true"] { color: #244cc6; background: white; border-color: #bbcaf2; box-shadow: 0 2px 4px #163c8510; }
 .template-strip .browse-templates { margin-left: auto; padding: 0; width: 34px; justify-content: center; }
@@ -109,6 +111,44 @@ body, .app-shell { background: #f5f7fb; }
 .import-summary span { color: #64748b; font-size: 13px; }
 .modal-actions { margin-top: 24px; display: flex; justify-content: flex-end; gap: 10px; }
 .modal-actions .secondary-button { display: flex; }
+.editable-collection-card { padding: 18px; margin-bottom: 16px; border: 1px solid #e1e7ef; border-radius: 12px; background: #fbfcff; }
+.collection-row-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+.collection-row-head strong { font-size: 14px; color: #21314d; }
+.collection-row-head .delete-project-button { min-height: 36px; }
+.editable-collection-card .form-grid { gap: 15px; }
+.collection-add { margin-top: 6px; min-height: 42px; }
+.editable-collection-row { position: relative; }
+.editable-collection-row .collection-row-head { grid-column: 1 / -1; margin: 0; }
+.editable-collection-row .collection-row-head strong { font-size: 13px; }
+.editable-collection-row label input { width: 100%; }
+.resume-page .education-entry + .education-entry { margin-top: 12px; padding-top: 10px; border-top: 1px solid #e1e7ef; }
+.resume-page .layout-timeline .education-entry + .education-entry { border-top-color: #e1e7ef; }
+.thumb-minimal .thumb-title { width: 58%; margin: 0 auto; background: #253247; }
+.thumb-minimal .thumb-meta { width: 42%; margin: 0 auto; }
+.thumb-minimal .thumb-rule { background: #ccd3dc; height: 2px; }
+.thumb-academic { padding: 0; }
+.thumb-academic .thumb-main { padding: 0 9px 9px; }
+.thumb-academic .thumb-title { width: calc(100% + 18px); height: 24px; margin-left: -9px; background: #172b4d; }
+.thumb-academic .thumb-meta { margin-top: 5px; }
+.thumb-academic .thumb-rule { background: #9daeca; }
+.resume-minimal .resume-main { padding: 45px 48px 40px; }
+.resume-minimal .resume-header { display: block; min-height: 105px; text-align: center; }
+.resume-minimal .resume-header h1 { font-size: 27px; letter-spacing: 2px; }
+.resume-minimal .resume-header p { margin-bottom: 8px; font-size: 11px; font-weight: 500; color: #566174; }
+.resume-minimal .contact-row { justify-content: center; }
+.resume-minimal .resume-header img { position: absolute; right: 44px; top: 40px; }
+.resume-minimal .resume-section-title { border-color: #cdd5df; color: #243247; letter-spacing: 1px; font-size: 11px; }
+.resume-minimal .skill-group i { background: #f3f5f8; color: #263547; }
+.resume-page.fit-compact.resume-minimal .resume-main { padding: 38px 42px 34px; }
+.resume-academic .resume-header { min-height: 126px; margin: -32px -38px 0; padding: 30px 38px 20px; background: #172b4d; color: #fff; }
+.resume-academic .resume-header h1 { font-family: Georgia, "Songti SC", "SimSun", serif; font-size: 28px; letter-spacing: 1.5px; }
+.resume-academic .resume-header p { font-size: 11px; font-weight: 500; color: #e5ebf4; }
+.resume-academic .contact-row { color: #e5ebf4; }
+.resume-academic .resume-section-title { color: #172b4d; border-color: #a4b4cb; font-family: Georgia, "Songti SC", "SimSun", serif; font-size: 13px; letter-spacing: .4px; }
+.resume-academic .education-entry { border-left-color: #637a9c; }
+.resume-academic .content-label { color: #48658e; }
+.resume-page.fit-compact.resume-academic .resume-header { margin: -27px -34px 0; padding: 27px 34px 20px; min-height: 112px; }
+.resume-page.fit-compact.resume-academic .resume-header h1 { font-size: 25px; }
 .toast { max-width: calc(100vw - 32px); white-space: normal; bottom: 24px; line-height: 1.6; text-align: center; }
 @media (max-width: 1100px) {
   .topbar { padding: 0 24px; }
