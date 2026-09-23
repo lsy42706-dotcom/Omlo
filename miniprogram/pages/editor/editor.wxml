@@ -1,13 +1,13 @@
 <view class="editor-page safe-bottom">
   <view class="hero">
-    <view class="hero-top"><view class="brand-mark">简</view><text class="brand-name">简历工坊</text><button class="logout-button" bindtap="logout">退出登录</button></view>
+    <view class="hero-top"><view class="brand-mark">简</view><text class="brand-name">简历工坊</text><button class="logout-button" bindtap="logout">{{localOnly ? '返回登录' : '退出登录'}}</button></view>
     <text class="hero-eyebrow">YOUR NEXT CHAPTER</text>
     <text class="hero-title">把经历写成机会</text>
     <text class="hero-subtitle">分步整理内容，随时预览你的简历。</text>
     <view class="hero-progress"><view><text>内容完善度</text><text class="progress-number">{{progress}}%</text></view><view class="progress-track"><view style="width: {{progress}}%"></view></view></view>
   </view>
 
-  <view class="status-row"><view class="status-dot"></view><text>{{saveStatus}}</text><button wx:if="{{saveStatus !== '已同步到云端' && saveStatus !== '正在同步云端…' && saveStatus !== '保存中…'}}" class="sync-button" bindtap="retryCloud">{{saveStatus === '其他设备更新了草稿' ? '处理冲突' : '立即同步'}}</button></view>
+  <view class="status-row"><view class="status-dot"></view><text>{{saveStatus}}</text><button wx:if="{{!localOnly && saveStatus !== '已同步到云端' && saveStatus !== '正在同步云端…' && saveStatus !== '保存中…'}}" class="sync-button" bindtap="retryCloud">{{saveStatus === '其他设备更新了草稿' ? '处理冲突' : '立即同步'}}</button><text wx:if="{{localOnly}}" class="status-note">未连接云端</text></view>
 
   <scroll-view class="step-scroll" scroll-x="true" enable-flex="true" show-scrollbar="false">
     <view class="step-list">

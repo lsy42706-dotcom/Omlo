@@ -1,4 +1,4 @@
-const { STORAGE_KEY, userStorageKey, parseBackup } = require("../../utils/resume");
+const { STORAGE_KEY, LOCAL_ACCOUNT_ID, userStorageKey, parseBackup } = require("../../utils/resume");
 
 function modal(options) {
   return new Promise((resolve) => wx.showModal({ ...options, success: resolve, fail: () => resolve({ failed: true }) }));
@@ -7,6 +7,17 @@ function modal(options) {
 Page({
   data: { busy: false, configured: false, error: "" },
   onLoad() { this.setData({ configured: Boolean(getApp().globalData.cloudReady && wx.cloud) }); },
+  startLocal() {
+    try {
+      const saved = wx.getStorageSync(userStorageKey(LOCAL_ACCOUNT_ID));
+      const cached = saved && JSON.parse(saved);
+      const draftJson = cached && cached.draftJson || null;
+      if (draftJson) parseBackup(draftJson);
+      getApp().globalData.account = { id: LOCAL_ACCOUNT_ID, revision: 0, serverDraft: null, localOnly: true };
+      getApp().globalData.initialDraft = draftJson;
+      wx.redirectTo({ url: "/pages/editor/editor" });
+    } catch (_) { this.setData({ error: "本机试用草稿读取失败。请先保留设备数据，再尝试恢复。" }); }
+  },
   async signIn() {
     if (this.data.busy) return;
     if (!getApp().globalData.cloudReady || !wx.cloud) {
@@ -35,6 +46,17 @@ Page({
             wx.setStorageSync(`${userStorageKey(result.accountId)}:backup`, cached);
             wx.removeStorageSync(userStorageKey(result.accountId));
           }
+        }
+      }
+      if (!result.draftJson && !draftJson) {
+        const trial = wx.getStorageSync(userStorageKey(LOCAL_ACCOUNT_ID));
+        let trialDraft = null;
+        try { trialDraft = trial && JSON.parse(trial).draftJson; if (trialDraft) parseBackup(trialDraft); }
+        catch (_) { trialDraft = null; }
+        if (trialDraft) {
+          const choice = await modal({ title: "导入本机试用草稿？", content: "检测到本机试用时填写的简历。导入后将保存到当前微信账号。", confirmText: "导入草稿", cancelText: "暂不导入" });
+          if (choice.failed) throw new Error("无法确认是否导入本机试用草稿，请重新登录。");
+          if (choice.confirm) { draftJson = trialDraft; revision = 0; }
         }
       }
       if (!result.draftJson && !draftJson) {

@@ -18,6 +18,7 @@ Page({
     activeStep: 0,
     progress: 0,
     saveStatus: "登录后同步到云端",
+    localOnly: false,
     hasLocalBackup: false,
     webUrl: WEB_URL
   },
@@ -25,15 +26,16 @@ Page({
     const account = getApp().globalData.account;
     if (!account || !account.id) { wx.reLaunch({ url: "/pages/login/login" }); return; }
     this.accountId = account.id;
+    this.localOnly = Boolean(account.localOnly);
     this.revision = account.revision || 0;
     try {
       const draftJson = getApp().globalData.initialDraft;
       const state = draftJson ? parseBackup(draftJson) : initialState();
       this.lastSyncedJson = account.serverDraft ? JSON.stringify(parseBackup(account.serverDraft)) : draftJson ? null : JSON.stringify(state);
       const hasLocalBackup = Boolean(wx.getStorageSync(`${userStorageKey(this.accountId)}:backup`));
-      this.setData({ ...state, progress: completion(state.resume), hasLocalBackup, saveStatus: draftJson ? "草稿已载入" : "已登录，开始填写吧" });
+      this.setData({ ...state, progress: completion(state.resume), hasLocalBackup, localOnly: this.localOnly, saveStatus: this.localOnly ? "仅本机试用" : draftJson ? "草稿已载入" : "已登录，开始填写吧" });
       this.hasLoaded = true;
-      if (JSON.stringify(state) !== this.lastSyncedJson) this.scheduleSave();
+      if (!this.localOnly && JSON.stringify(state) !== this.lastSyncedJson) this.scheduleSave();
     } catch (_) {
       this.setData({ saveStatus: "草稿读取失败，请从登录页重试" });
       wx.showToast({ title: "草稿读取失败", icon: "none" });
@@ -63,7 +65,8 @@ Page({
     if (!this.hasLoaded || !this.accountId || !this.data || !this.data.resume) return;
     const draftJson = JSON.stringify(this.currentState());
     try {
-      wx.setStorageSync(userStorageKey(this.accountId), JSON.stringify({ draftJson, revision: this.revision, pending: draftJson !== this.lastSyncedJson }));
+      wx.setStorageSync(userStorageKey(this.accountId), JSON.stringify({ draftJson, revision: this.revision, pending: !this.localOnly && draftJson !== this.lastSyncedJson }));
+      if (this.localOnly) { this.setData({ saveStatus: "仅本机保存" }); return; }
       if (draftJson === this.lastSyncedJson) this.setData({ saveStatus: "已同步到云端" });
       else { this.setData({ saveStatus: this.conflict ? "其他设备更新了草稿" : "本机已保存，云端待同步" }); this.scheduleCloudSync(); }
     } catch (_) {
@@ -71,12 +74,12 @@ Page({
     }
   },
   scheduleCloudSync() {
-    if (this.conflict) return;
+    if (this.localOnly || this.conflict) return;
     clearTimeout(this.cloudTimer);
     this.cloudTimer = setTimeout(() => this.syncCloud(), 900);
   },
   async syncCloud() {
-    if (!this.accountId || this.conflict) return;
+    if (this.localOnly || !this.accountId || this.conflict) return;
     if (!getApp().globalData.account || getApp().globalData.account.id !== this.accountId) return;
     if (this.syncInFlight) { this.syncAgain = true; return; }
     const draftJson = JSON.stringify(this.currentState());
@@ -133,8 +136,8 @@ Page({
     } });
   },
   logout() {
-    const pending = JSON.stringify(this.currentState()) !== this.lastSyncedJson;
-    wx.showModal({ title: "退出当前账号？", content: pending ? "本机还有未同步的编辑。退出后本机草稿会保留，下次登录可恢复。" : "再次进入时需要重新登录。", success: ({ confirm }) => {
+    const pending = !this.localOnly && JSON.stringify(this.currentState()) !== this.lastSyncedJson;
+    wx.showModal({ title: this.localOnly ? "结束本机试用？" : "退出当前账号？", content: this.localOnly ? "本机草稿会保留，下次试用可继续编辑。" : pending ? "本机还有未同步的编辑。退出后本机草稿会保留，下次登录可恢复。" : "再次进入时需要重新登录。", success: ({ confirm }) => {
       if (!confirm) return;
       this.persist();
       this.skipPersist = true;
@@ -242,7 +245,7 @@ Page({
     } catch (_) { wx.showToast({ title: "本机备份读取失败", icon: "none" }); }
   },
   clearResume() {
-    wx.showModal({ title: "清空简历", content: "将清空当前账号的草稿，并同步到云端。建议先复制备份。", confirmColor: "#ba3d35", success: ({ confirm }) => {
+    wx.showModal({ title: "清空简历", content: this.localOnly ? "将清空本机试用草稿。建议先复制备份。" : "将清空当前账号的草稿，并同步到云端。建议先复制备份。", confirmColor: "#ba3d35", success: ({ confirm }) => {
       if (!confirm) return;
       const state = initialState();
       this.setData({ ...state, progress: 0, activeStep: 0 }, () => this.persist());

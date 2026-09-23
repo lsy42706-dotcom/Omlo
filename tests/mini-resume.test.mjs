@@ -46,6 +46,7 @@ test('native editor handlers add, edit and persist collection rows', async () =>
   let definition;
   const storage = new Map();
   const app = { globalData: { account: { id: 'openid-a', revision: 0, serverDraft: null }, initialDraft: null } };
+  let cloudCalls = 0;
   globalThis.Page = (page) => { definition = page; };
   globalThis.getApp = () => app;
   globalThis.wx = {
@@ -53,7 +54,7 @@ test('native editor handlers add, edit and persist collection rows', async () =>
     setStorageSync: (key, value) => { storage.set(key, value); },
     showToast: () => {},
     pageScrollTo: () => {},
-    cloud: { callFunction: async () => ({ result: { ok: true, revision: 1 } }) }
+    cloud: { callFunction: async () => { cloudCalls += 1; return { result: { ok: true, revision: 1 } }; } }
   };
   try {
     await import('../miniprogram/pages/editor/editor.js');
@@ -83,6 +84,19 @@ test('native editor handlers add, edit and persist collection rows', async () =>
     assert.equal(storage.has(mini.STORAGE_KEY), false);
     clearTimeout(page.saveTimer);
     clearTimeout(page.cloudTimer);
+
+    app.globalData.account = { id: mini.LOCAL_ACCOUNT_ID, revision: 0, serverDraft: null, localOnly: true };
+    app.globalData.initialDraft = JSON.stringify(mini.initialState());
+    const localPage = { ...definition, data: structuredClone(definition.data), setData: page.setData };
+    localPage.onLoad();
+    localPage.onBasicInput({ currentTarget: { dataset: { field: 'name' } }, detail: { value: '本机试用' } });
+    localPage.persist();
+    await localPage.syncCloud();
+    assert.equal(cloudCalls, 0);
+    assert.equal(JSON.parse(storage.get(mini.userStorageKey(mini.LOCAL_ACCOUNT_ID))).pending, false);
+    assert.equal(localPage.data.saveStatus, '仅本机保存');
+    clearTimeout(localPage.saveTimer);
+    clearTimeout(localPage.cloudTimer);
   } finally {
     delete globalThis.Page;
     delete globalThis.getApp;
@@ -117,6 +131,13 @@ test('login can choose the cloud draft without losing an unsynced device draft',
     assert.equal(app.globalData.initialDraft, cloudDraft);
     assert.equal(storage.has(mini.userStorageKey('openid-a')), false);
     assert.equal(JSON.parse(storage.get(`${mini.userStorageKey('openid-a')}:backup`)).draftJson, localDraft);
+
+    const trial = mini.initialState();
+    trial.resume.basics.name = '本机试用';
+    storage.set(mini.userStorageKey(mini.LOCAL_ACCOUNT_ID), JSON.stringify({ draftJson: JSON.stringify(trial), revision: 0, pending: false }));
+    page.startLocal();
+    assert.equal(app.globalData.account.localOnly, true);
+    assert.equal(JSON.parse(app.globalData.initialDraft).resume.basics.name, '本机试用');
   } finally {
     delete globalThis.Page;
     delete globalThis.getApp;
