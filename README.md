@@ -10,7 +10,7 @@
 
 ## 主要功能
 
-- 三种简历模板：经典简洁、技术专才、现代双栏
+- 五种简历模板：经典简洁、技术专才、现代双栏、极简留白、学术履历
 - 基本信息、教育经历、项目经历、专业技能和自我评价实时编辑
 - 支持添加多段项目经历和多条项目成果
 - 模块主题名称、技能分类名称和内容排版可自定义
@@ -45,6 +45,7 @@ npm run dev
 ```bash
 npm run build
 npm run test:sites
+npm run test:mini
 node --test tests/copy-optimizer.test.mjs
 ```
 
@@ -59,6 +60,8 @@ src/
   main.jsx              React 入口
   styles.css            页面、模板与 A4 排版样式
 tests/                  功能测试
+miniprogram/            原生微信小程序（编辑、预览、本地保存）
+project.config.json     微信开发者工具项目配置
 worker/                 静态站点 Worker 入口
 scripts/                构建准备脚本
 ```
@@ -75,6 +78,12 @@ scripts/                构建准备脚本
 - 内容超出一页时提示页数。PDF 保留全部内容并按 A4 分页，分页处可能切开长段落，投递前请检查导出文件。
 
 开发验证：`npm run build` 后运行 `node --test tests/*.test.mjs`。数据校验、存储异常与完善度测试位于 `tests/resume-data.test.mjs`。
+
+## 微信小程序
+
+使用微信开发者工具导入仓库根目录 `Omlo/`。项目配置已经把小程序源码目录设为 `miniprogram/`；本地原型使用 `touristappid`。发布前，在开发者工具中替换为你自己的小程序 AppID，并完成真机预览、上传和微信审核。仓库不保存真实 AppID 或本机私有配置。
+
+小程序支持基本信息、教育经历、项目经历和专业技能的分步编辑，教育与技能分类可增删；提供五种阅读预览样式、本地自动保存、简历文字复制，以及与网页版兼容的 JSON 备份。迁移时先在「模板样式」复制备份，再到另一端导入。小程序暂不原生生成 PDF/Word；需要文件时可将备份导入网页版导出。两端的本地数据不会自动同步。
 
 ## 数据与隐私
 

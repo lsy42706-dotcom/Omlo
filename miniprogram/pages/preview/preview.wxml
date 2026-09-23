@@ -1,0 +1,17 @@
+<view class="preview-page safe-bottom">
+  <view class="preview-top"><view><text class="preview-eyebrow">LIVE PREVIEW</text><text class="preview-title">简历预览</text><text class="preview-subtitle">{{templateName}} · 内容随编辑实时更新</text></view><button class="edit-link" bindtap="backToEditor">返回编辑</button></view>
+  <scroll-view class="template-scroll" scroll-x="true" show-scrollbar="false"><view class="template-list"><view wx:for="{{templates}}" wx:key="id" class="template-chip {{settings.template === item.id ? 'active' : ''}}" data-template="{{item.id}}" bindtap="selectTemplate">{{item.name}}</view></view></scroll-view>
+
+  <view class="paper-wrap"><view class="resume-paper template-{{templateClass}} density-{{settings.spacing}}" style="--accent: {{settings.accent}};">
+    <view class="paper-header"><image wx:if="{{settings.showPhoto && resume.basics.photo}}" class="resume-photo" src="{{resume.basics.photo}}" mode="aspectFill" /><text class="person-name">{{resume.basics.name || '你的姓名'}}</text><text class="person-role">{{resume.basics.jobTitle || '求职岗位'}}</text><view class="contact-line"><text wx:if="{{resume.basics.phone}}">{{resume.basics.phone}}</text><text wx:if="{{resume.basics.email}}">{{resume.basics.email}}</text><text wx:if="{{resume.basics.location}}">{{resume.basics.location}}</text></view></view>
+    <view wx:if="{{!hasContent}}" class="empty-preview"><text>你的简历画布已准备好</text><text>返回编辑，填入姓名和经历后即可预览。</text></view>
+    <view wx:for="{{sections}}" wx:for-item="section" wx:key="type" class="resume-section"><view class="section-heading"><text>{{section.title}}</text></view>
+      <block wx:if="{{section.type === 'summary' || section.type === 'evaluation'}}"><view wx:for="{{section.points}}" wx:for-item="point" wx:key="*this" class="bullet-line"><text class="bullet-dot">•</text><text>{{point}}</text></view></block>
+      <block wx:elif="{{section.type === 'education'}}"><view wx:for="{{section.entries}}" wx:for-item="entry" wx:key="id" class="resume-entry"><view class="entry-main"><text class="entry-title">{{entry.school || '学校名称'}}</text><text class="entry-time">{{entry.startDate}}{{entry.startDate && entry.endDate ? ' — ' : ''}}{{entry.endDate}}</text></view><view class="entry-meta"><text>{{entry.major}}{{entry.degree ? ' · ' + entry.degree : ''}}</text><text>{{entry.location}}</text></view></view></block>
+      <block wx:elif="{{section.type === 'project'}}"><view wx:for="{{section.entries}}" wx:for-item="entry" wx:key="id" class="resume-entry"><view class="entry-main"><text class="entry-title">{{entry.name || '项目名称'}}</text><text class="entry-time">{{entry.startDate}}{{entry.startDate && entry.endDate ? ' — ' : ''}}{{entry.endDate}}</text></view><text wx:if="{{entry.role}}" class="project-role">{{entry.role}}</text><view wx:for="{{entry.bullets}}" wx:for-item="bullet" wx:key="*this" class="bullet-line"><text class="bullet-dot">•</text><text>{{bullet}}</text></view></view></block>
+      <block wx:elif="{{section.type === 'skills'}}"><view wx:for="{{section.entries}}" wx:for-item="entry" wx:key="id" class="skill-line"><text class="skill-label">{{entry.label || '技能'}}：</text><text>{{entry.value}}</text></view></block>
+    </view>
+  </view></view>
+  <view class="preview-help">小程序提供阅读预览。PDF / Word 请通过网页版导出。</view>
+  <view class="preview-actions"><button class="copy-button" bindtap="copyText">复制简历文字</button><button class="web-button" bindtap="copyWebLink">网页版导出 PDF / Word</button></view>
+</view>
