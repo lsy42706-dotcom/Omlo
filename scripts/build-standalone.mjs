@@ -41,8 +41,15 @@ const styleTag = /<link\b[^>]*\bhref="\.\/assets\/[^\"]+\.css"[^>]*>/;
 if (!scriptTag.test(html) || !styleTag.test(html)) {
   throw new Error("Vite output changed: cannot find the local JavaScript and CSS references.");
 }
-html = html.replace(styleTag, `<style>\n${css}\n</style>`);
-html = html.replace(scriptTag, `<script type="module">\n${js}\n</script>`);
+// Use replacement callbacks: bundled code contains "$&" and related text,
+// which String.replace would otherwise expand into the matched HTML tag.
+html = html.replace(styleTag, () => `<style>\n${css}\n</style>`);
+html = html.replace(scriptTag, () => `<script type="module">\n${js}\n</script>`);
+const inlineScript = html.match(/<script type="module">\n([\s\S]*?)\n<\/script>/);
+const inlineStyle = html.match(/<style>\n([\s\S]*?)\n<\/style>/);
+if (inlineScript?.[1] !== js || inlineStyle?.[1] !== css) {
+  throw new Error("Bundled source changed while embedding it in the HTML.");
+}
 const markup = html
   .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")
   .replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, "");
