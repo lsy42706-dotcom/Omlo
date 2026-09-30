@@ -245,9 +245,9 @@ input:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3p
 .content-points.two-columns { columns: 2; column-gap: 24px; }
 .content-points.two-columns li { break-inside: avoid; }
 .content-label { display: block; margin: 5px 0 2px; color: var(--resume-accent, #2e5bea); font-size: 7.5px; font-weight: 700; letter-spacing: .2px; }
-.layout-timeline .education-entry { padding-left: 10px; border-left: 2px solid var(--resume-accent, #2e5bea); }
-.layout-card .education-entry, .module-project.layout-card .project-entry { padding: 8px 9px; border: 1px solid #dce3ed; border-radius: 4px; background: #fafbfe; }
-.layout-compact .education-entry .resume-row { margin-bottom: 1px; }
+.layout-timeline .education-entry, .layout-timeline .internship-entry { padding-left: 10px; border-left: 2px solid var(--resume-accent, #2e5bea); }
+.layout-card .education-entry, .layout-card .internship-entry, .layout-card .publication-entry, .layout-card .award-entry, .module-project.layout-card .project-entry { padding: 8px 9px; border: 1px solid #dce3ed; border-radius: 4px; background: #fafbfe; }
+.layout-compact .education-entry .resume-row, .layout-compact .internship-entry .resume-row, .layout-compact .publication-entry .resume-row, .layout-compact .award-entry .resume-row { margin-bottom: 1px; }
 .module-project.layout-bullets .resume-role { display: inline-block; margin: 0 0 2px; padding: 1px 5px; border-radius: 10px; background: #eef2f8; }
 .project-entry + .project-entry { margin-top: 10px; padding-top: 9px; border-top: 1px dashed #cfd8e6; }
 .module-project.layout-card .project-entry + .project-entry { border-top-style: solid; }
@@ -383,7 +383,7 @@ input:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3p
   .topbar { padding: 0 16px; grid-template-columns: auto 1fr; }
   .document-title, .top-actions > .save-status, .top-actions > .icon-button { display: none; }
   .top-actions { justify-self: end; }
-  .stepper { overflow-x: auto; padding-left: 18px; padding-right: 18px; grid-template-columns: repeat(5, 150px); }
+  .stepper { overflow-x: auto; padding-left: 18px; padding-right: 18px; grid-template-columns: repeat(6, 150px); }
   .progress-track, .progress-label { display: none; }
   .workspace { display: block; }
   .editor-panel { padding: 14px; border-right: 0; }

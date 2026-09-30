@@ -50,8 +50,19 @@ test('multiple education and custom skills survive backup and affect completenes
   assert.equal(sectionHasContent('教育经历', reduced), false);
   assert.equal(sectionHasContent('技能', reduced), false);
 });
+test('internships, publications and awards survive backup and can be omitted when empty', () => {
+  const resume = { ...blank(), internships: [{ id: 'i1', company: '某科技公司', position: '嵌入式实习生', description: '参与固件开发' }], publications: [{ id: 'p1', title: '控制系统研究', authors: '甲、乙', venue: '学术会议' }], awards: [{ id: 'a1', title: '电子设计竞赛一等奖', issuer: '组委会' }] };
+  for (const name of ['实习经历', '发表论文', '得奖情况']) assert.equal(sectionHasContent(name, resume), true);
+  const restored = parseResumeBackup(createBackup({ resume, settings: {}, order: SECTION_ORDER }));
+  assert.deepEqual(restored.resume.internships, resume.internships);
+  assert.deepEqual(restored.resume.publications, resume.publications);
+  assert.deepEqual(restored.resume.awards, resume.awards);
+  const empty = { ...resume, internships: [], publications: [], awards: [] };
+  for (const name of ['实习经历', '发表论文', '得奖情况']) assert.equal(sectionHasContent(name, empty), false);
+  assert.deepEqual(normalizeResumeCollections(blank()).internships, []);
+});
 test('malformed and oversized imports fail before changing state', () => {
-  const invalid = ['oops', 'null', '{}', '{"resume":{"basics":[]}}', '{"resume":{"projects":[null]}}', '{"resume":{"skills":{"languages":[]}}}', '{"resume":{"educations":[null]}}', '{"resume":{"skillEntries":[{"label":7}]}}', '{"version":2,"resume":{}}', '{"resume":{"project":{"achievements":[{}]}}}', '{"resume":{"basics":{"photo":"https://example.com/photo.png"}}}'];
+  const invalid = ['oops', 'null', '{}', '{"resume":{"basics":[]}}', '{"resume":{"projects":[null]}}', '{"resume":{"skills":{"languages":[]}}}', '{"resume":{"educations":[null]}}', '{"resume":{"internships":[{"company":42}]}}', '{"resume":{"publications":[null]}}', '{"resume":{"awards":[{"date":false}]}}', '{"resume":{"skillEntries":[{"label":7}]}}', '{"version":2,"resume":{}}', '{"resume":{"project":{"achievements":[{}]}}}', '{"resume":{"basics":{"photo":"https://example.com/photo.png"}}}'];
   for (const value of invalid) assert.throws(() => parseResumeBackup(value));
   assert.throws(() => parseResumeBackup(' '.repeat(8 * 1024 * 1024 + 1)), /8 MB/);
 });

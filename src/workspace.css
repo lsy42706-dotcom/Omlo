@@ -79,6 +79,14 @@ body, .app-shell { background: #f5f7fb; }
 .preview-stage { position: relative; margin: 0 auto; }
 .preview-transform { width: 610px; transform-origin: top left; }
 .resume-page { width: 610px; max-width: none; height: calc(610px * 297 / 210); aspect-ratio: auto; margin: 0; transition: none; }
+.resume-pages { width: 610px; display: grid; gap: 18px; position: relative; }
+.pagination-measure { position: absolute; left: 0; top: 0; width: 610px; height: 0; visibility: hidden; pointer-events: none; overflow: visible; }
+.resume-page-shell { position: relative; width: 610px; height: calc(610px * 297 / 210); overflow: hidden; background: #fff; box-shadow: 0 8px 28px rgba(35,49,75,.13); }
+.resume-page-shell.no-page-border { box-shadow: none; }
+.resume-page-window { position: absolute; left: 0; width: 610px; overflow: hidden; }
+.resume-page-offset { position: absolute; left: 0; width: 610px; }
+.resume-page.resume-document { width: 610px; height: auto; min-height: calc(610px * 297 / 210); max-height: none; aspect-ratio: auto; overflow: visible; box-shadow: none; margin: 0; }
+.pagination-measure .resume-document { min-height: 0; }
 .resume-page .resume-main, .resume-page .modern-sidebar { overflow-wrap: anywhere; }
 .resume-page .resume-main p, .resume-page .resume-main li { font-size: 10.5px; line-height: 1.65; }
 .resume-page .resume-row { font-size: 10px; }
@@ -116,12 +124,14 @@ body, .app-shell { background: #f5f7fb; }
 .collection-row-head strong { font-size: 14px; color: #21314d; }
 .collection-row-head .delete-project-button { min-height: 36px; }
 .editable-collection-card .form-grid { gap: 15px; }
+.optional-editor-section + .optional-editor-section { margin-top: 28px; padding-top: 22px; border-top: 1px solid #e1e7ef; }
 .collection-add { margin-top: 6px; min-height: 42px; }
 .editable-collection-row { position: relative; }
 .editable-collection-row .collection-row-head { grid-column: 1 / -1; margin: 0; }
 .editable-collection-row .collection-row-head strong { font-size: 13px; }
 .editable-collection-row label input { width: 100%; }
 .resume-page .education-entry + .education-entry { margin-top: 12px; padding-top: 10px; border-top: 1px solid #e1e7ef; }
+.resume-page .internship-entry + .internship-entry, .resume-page .publication-entry + .publication-entry, .resume-page .award-entry + .award-entry { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #d5deea; }
 .resume-page .layout-timeline .education-entry + .education-entry { border-top-color: #e1e7ef; }
 .thumb-minimal .thumb-title { width: 58%; margin: 0 auto; background: #253247; }
 .thumb-minimal .thumb-meta { width: 42%; margin: 0 auto; }

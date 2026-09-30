@@ -1,22 +1,31 @@
 export const STORAGE_KEY = "resume-workshop-state";
-export const SECTION_ORDER = ["基本信息", "教育经历", "项目经历", "技能", "自我评价"];
+export const SECTION_ORDER = ["基本信息", "教育经历", "实习经历", "项目经历", "发表论文", "得奖情况", "技能", "自我评价"];
 export const hasText = (value) => typeof value === "string" && value.trim().length > 0;
 export const hasProjectContent = (project) => [project.name, project.role, project.description, project.startDate, project.endDate, ...(project.achievements || [])].some(hasText);
 export const hasEducationContent = (entry) => [entry.school, entry.major, entry.degree, entry.startDate, entry.endDate, entry.location].some(hasText);
+export const hasInternshipContent = (entry) => [entry.company, entry.position, entry.location, entry.startDate, entry.endDate, entry.description].some(hasText);
+export const hasPublicationContent = (entry) => [entry.title, entry.authors, entry.venue, entry.publishedAt, entry.doi].some(hasText);
+export const hasAwardContent = (entry) => [entry.title, entry.issuer, entry.date, entry.level, entry.description].some(hasText);
 export const DEFAULT_SKILL_LABELS = { languages: "编程语言", embedded: "嵌入式开发", protocols: "通信协议", tools: "开发工具" };
 export const educationEntries = (resume) => Array.isArray(resume.educations) ? resume.educations : resume.education ? [resume.education] : [];
 export const skillEntries = (resume) => Array.isArray(resume.skillEntries) ? resume.skillEntries : Object.entries(DEFAULT_SKILL_LABELS).map(([key, label]) => ({ id: key, label: resume.skillLabels?.[key] || label, value: resume.skills?.[key] || "" }));
 export function normalizeResumeCollections(value = {}) {
   const educations = educationEntries(value).map((entry, index) => ({ id: `education-${index + 1}`, school: entry.school || "", major: entry.major || "", degree: entry.degree || "", startDate: entry.startDate || "", endDate: entry.endDate || "", location: entry.location || "" }));
   const skills = skillEntries(value).map((entry, index) => ({ id: `skill-${index + 1}`, label: entry.label || "", value: entry.value || "" }));
-  return { educations, skillEntries: skills };
+  const internships = (Array.isArray(value.internships) ? value.internships : []).map((entry, index) => ({ id: `internship-${index + 1}`, company: entry.company || "", position: entry.position || "", location: entry.location || "", startDate: entry.startDate || "", endDate: entry.endDate || "", description: entry.description || "" }));
+  const publications = (Array.isArray(value.publications) ? value.publications : []).map((entry, index) => ({ id: `publication-${index + 1}`, title: entry.title || "", authors: entry.authors || "", venue: entry.venue || "", publishedAt: entry.publishedAt || "", doi: entry.doi || "" }));
+  const awards = (Array.isArray(value.awards) ? value.awards : []).map((entry, index) => ({ id: `award-${index + 1}`, title: entry.title || "", issuer: entry.issuer || "", date: entry.date || "", level: entry.level || "", description: entry.description || "" }));
+  return { educations, skillEntries: skills, internships, publications, awards };
 }
 export const normalizeOrder = (value) => [...new Set([...(Array.isArray(value) ? value.filter((key) => SECTION_ORDER.includes(key)) : []), ...SECTION_ORDER])];
 
 export function sectionHasContent(key, resume) {
   if (key === "基本信息") return hasText(resume.basics.summary);
   if (key === "教育经历") return educationEntries(resume).some(hasEducationContent);
+  if (key === "实习经历") return (resume.internships || []).some(hasInternshipContent);
   if (key === "项目经历") return resume.projects.some(hasProjectContent);
+  if (key === "发表论文") return (resume.publications || []).some(hasPublicationContent);
+  if (key === "得奖情况") return (resume.awards || []).some(hasAwardContent);
   if (key === "技能") return skillEntries(resume).some((entry) => hasText(entry.value));
   if (key === "自我评价") return hasText(resume.selfEvaluation);
   return false;
@@ -55,6 +64,12 @@ export function parseResumeBackup(text) {
   textFields(r.skillLabels, ["languages", "embedded", "protocols", "tools"]);
   if (r.educations !== undefined && (!Array.isArray(r.educations) || r.educations.length > 50)) invalid();
   for (const entry of r.educations || []) textFields(entry, ["id", "school", "major", "degree", "startDate", "endDate", "location"]);
+  if (r.internships !== undefined && (!Array.isArray(r.internships) || r.internships.length > 50)) invalid();
+  for (const entry of r.internships || []) textFields(entry, ["id", "company", "position", "location", "startDate", "endDate", "description"]);
+  if (r.publications !== undefined && (!Array.isArray(r.publications) || r.publications.length > 50)) invalid();
+  for (const entry of r.publications || []) textFields(entry, ["id", "title", "authors", "venue", "publishedAt", "doi"]);
+  if (r.awards !== undefined && (!Array.isArray(r.awards) || r.awards.length > 50)) invalid();
+  for (const entry of r.awards || []) textFields(entry, ["id", "title", "issuer", "date", "level", "description"]);
   if (r.skillEntries !== undefined && (!Array.isArray(r.skillEntries) || r.skillEntries.length > 100)) invalid();
   for (const entry of r.skillEntries || []) textFields(entry, ["id", "label", "value"]);
   textFields(r.sectionTitles, SECTION_ORDER);
@@ -71,7 +86,7 @@ export function parseResumeBackup(text) {
   if (!["compact", "standard", "comfortable"].includes(settings.spacing)) delete settings.spacing;
   if (!/^#[a-f\d]{6}$/i.test(settings.accent || "")) delete settings.accent;
   for (const key of ["showPhoto", "pageBorder", "hideEmptySections"]) if (typeof settings[key] !== "boolean") delete settings[key];
-  const layouts = { 基本信息: ["bullets", "columns", "paragraph"], 教育经历: ["timeline", "card", "compact"], 项目经历: ["structured", "bullets", "card"], 技能: ["groups", "tags", "columns"], 自我评价: ["bullets", "columns", "paragraph"] };
+  const layouts = { 基本信息: ["bullets", "columns", "paragraph"], 教育经历: ["timeline", "card", "compact"], 实习经历: ["timeline", "card", "compact"], 项目经历: ["structured", "bullets", "card"], 发表论文: ["list", "card", "compact"], 得奖情况: ["list", "card", "compact"], 技能: ["groups", "tags", "columns"], 自我评价: ["bullets", "columns", "paragraph"] };
   settings.moduleLayouts = Object.fromEntries(Object.entries(isRecord(settings.moduleLayouts) ? settings.moduleLayouts : {}).filter(([key, value]) => layouts[key]?.includes(value)));
   return { resume: r, settings, order: normalizeOrder(state.order) };
 }
